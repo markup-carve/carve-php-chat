@@ -307,9 +307,14 @@ final class ChatRenderer implements RendererInterface
 
     private function divLabel(Div $node): string
     {
-        $title = $this->stripControls($node->getAttribute('title') ?? '');
-        if ($title !== '') {
-            return $this->escapeText($title) . ':';
+        // `title` names a details/spoiler block, `label` a tab panel. Either
+        // way it is the block's name, and a tab without one is just prose
+        // butted against the next tab.
+        foreach (['title', 'label'] as $attribute) {
+            $value = $this->stripControls($node->getAttribute($attribute) ?? '');
+            if ($value !== '') {
+                return $this->escapeText($value) . ':';
+            }
         }
 
         $class = $node->getAttribute('class') ?? '';

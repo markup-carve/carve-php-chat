@@ -13,5 +13,5 @@ All notable changes to this project are documented in this file.
 - Data-driven flavor definitions in `resources/flavors/*.json`, keyed by Carve `NodeType`.
 - `carve` fallback, keeping Carve's own delimiters where a target can express nothing.
 - Extension-qualified node keys (`inline_extension:spoiler`), mapping Carve's spoiler extension to each target's own spoiler.
-- Labels for self-naming divs (admonition kinds, `details`/`spoiler` titles), which chat cannot convey as a box.
+- Labels for self-naming divs (admonition kinds, `details`/`spoiler` titles, tab `label`), which chat cannot convey as a box.
 - Custom and derived flavors via `extends` and `FlavorRegistry::fromJsonFile()`.

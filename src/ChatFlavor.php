@@ -22,6 +22,25 @@ final readonly class ChatFlavor
     public const SUPPORT_NONE = 'none';
 
     /**
+     * Node types that exist as classes in the core but have no `NodeType`
+     * constant, so reflecting over that class alone does not find them.
+     *
+     * This gap was not academic: `citation-group` had no entry anywhere, so
+     * every citation was dropped from the message without any gate noticing.
+     * {@see \MarkupCarve\Chat\Test\TestCase\FlavorCompletenessTest} asserts
+     * this list still matches the core's node classes.
+     *
+     * @var array<string>
+     */
+    public const EXTRA_NODE_TYPES = [
+        'document',
+        'substitution',
+        'citation-group',
+        'raw_text',
+        'caption_number',
+    ];
+
+    /**
      * @param string $id
      * @param string $label
      * @param string|null $extends
@@ -256,7 +275,7 @@ final readonly class ChatFlavor
      */
     private static function knownNodeTypes(): array
     {
-        $values = [];
+        $values = self::EXTRA_NODE_TYPES;
         foreach ((new ReflectionClass(NodeType::class))->getConstants() as $value) {
             if (is_string($value)) {
                 $values[] = $value;

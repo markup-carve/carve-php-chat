@@ -203,6 +203,19 @@
     "abbreviation": {
       "support": "none",
       "fallback": "unwrap"
+    },
+    "substitution": {
+      "support": "native"
+    },
+    "caption_number": {
+      "support": "native"
+    },
+    "raw_text": {
+      "support": "native"
+    },
+    "citation-group": {
+      "support": "none",
+      "fallback": "unwrap"
     }
   }
 }

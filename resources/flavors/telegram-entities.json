@@ -63,6 +63,19 @@
     "inline_extension:spoiler": {
       "support": "native",
       "style": "spoiler"
+    },
+    "substitution": {
+      "support": "native"
+    },
+    "caption_number": {
+      "support": "native"
+    },
+    "raw_text": {
+      "support": "native"
+    },
+    "citation-group": {
+      "support": "none",
+      "fallback": "unwrap"
     }
   }
 }

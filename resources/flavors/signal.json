@@ -204,6 +204,19 @@
     "inline_extension:spoiler": {
       "support": "native",
       "style": "SPOILER"
+    },
+    "substitution": {
+      "support": "native"
+    },
+    "caption_number": {
+      "support": "native"
+    },
+    "raw_text": {
+      "support": "native"
+    },
+    "citation-group": {
+      "support": "none",
+      "fallback": "unwrap"
     }
   },
   "output": "ranges",

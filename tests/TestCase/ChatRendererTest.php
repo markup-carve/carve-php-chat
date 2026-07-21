@@ -9,6 +9,7 @@ use MarkupCarve\Carve\Extension\AdmonitionExtension;
 use MarkupCarve\Carve\Extension\CitationsExtension;
 use MarkupCarve\Carve\Extension\DetailsExtension;
 use MarkupCarve\Carve\Extension\SpoilerExtension;
+use MarkupCarve\Carve\Extension\TabsExtension;
 use MarkupCarve\Carve\Node\Block\BlockQuote;
 use MarkupCarve\Carve\Node\Block\Footnote;
 use MarkupCarve\Carve\Node\Block\Heading;
@@ -19,12 +20,14 @@ use MarkupCarve\Carve\Node\Block\Table;
 use MarkupCarve\Carve\Node\Block\TableCell;
 use MarkupCarve\Carve\Node\Block\TableRow;
 use MarkupCarve\Carve\Node\Document;
+use MarkupCarve\Carve\Node\Inline\CaptionNumber;
 use MarkupCarve\Carve\Node\Inline\Code;
 use MarkupCarve\Carve\Node\Inline\Emphasis;
 use MarkupCarve\Carve\Node\Inline\Image;
 use MarkupCarve\Carve\Node\Inline\Link;
 use MarkupCarve\Carve\Node\Inline\Strike;
 use MarkupCarve\Carve\Node\Inline\Strong;
+use MarkupCarve\Carve\Node\Inline\Substitution;
 use MarkupCarve\Carve\Node\Inline\Text;
 use MarkupCarve\Chat\ChatRenderer;
 use MarkupCarve\Chat\FlavorRegistry;
@@ -273,6 +276,42 @@ final class ChatRendererTest extends TestCase
         $rendered = (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->render($converter->parse($source));
 
         self::assertSame($expected, $rendered);
+    }
+
+    /**
+     * A tab panel names itself with a `label` attribute rather than a title,
+     * and without it the panels run together as undifferentiated prose.
+     */
+    public function testTabLabelSurvives(): void
+    {
+        $converter = CarveConverter::create();
+        $converter->addExtension(new TabsExtension());
+        $source = ":::: tabs\n\n{label=\"First Tab\"}\n::: tab\nFirst body.\n:::\n\n{label=\"Second Tab\"}\n::: tab\nSecond body.\n:::\n\n::::\n";
+
+        $rendered = (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->render($converter->parse($source));
+
+        self::assertSame("First Tab:\nFirst body.\n\nSecond Tab:\nSecond body.\n", $rendered);
+    }
+
+    /**
+     * Substitutions and caption numbers keep their content in properties. The
+     * renderer had correct branches for both, but they were unreachable while
+     * no flavor declared the node, so the fallback path silently emptied them.
+     */
+    public function testPropertyHeldInlineNodesAreNotEmptied(): void
+    {
+        $paragraph = new Paragraph();
+        $paragraph->appendChild(new Text('A '));
+        $paragraph->appendChild(new Substitution('old', 'new'));
+        $paragraph->appendChild(new Text(' B '));
+        $paragraph->appendChild(new CaptionNumber());
+        $document = new Document();
+        $document->appendChild($paragraph);
+
+        $rendered = (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->render($document);
+
+        self::assertStringContainsString('oldnew', $rendered);
+        self::assertStringContainsString('#', $rendered);
     }
 
     private function richDocument(): Document
