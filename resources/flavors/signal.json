@@ -178,8 +178,8 @@
       "fallback": "carve"
     },
     "highlight": {
-      "support": "native",
-      "style": "SPOILER"
+      "support": "none",
+      "fallback": "carve"
     },
     "insert": {
       "support": "none",
@@ -200,6 +200,10 @@
     "abbreviation": {
       "support": "none",
       "fallback": "unwrap"
+    },
+    "inline_extension:spoiler": {
+      "support": "native",
+      "style": "SPOILER"
     }
   },
   "output": "ranges",

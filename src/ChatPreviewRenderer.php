@@ -17,6 +17,7 @@ use MarkupCarve\Carve\Node\Inline\Code;
 use MarkupCarve\Carve\Node\Inline\EscapedText;
 use MarkupCarve\Carve\Node\Inline\HardBreak;
 use MarkupCarve\Carve\Node\Inline\Image;
+use MarkupCarve\Carve\Node\Inline\InlineExtension;
 use MarkupCarve\Carve\Node\Inline\Link;
 use MarkupCarve\Carve\Node\Inline\SoftBreak;
 use MarkupCarve\Carve\Node\Inline\Text;
@@ -70,6 +71,14 @@ final class ChatPreviewRenderer implements RendererInterface
         NodeType::INSERT => 'ins',
         NodeType::DELETE => 'del',
     ];
+
+    /**
+     * Carve's spoiler is an extension rather than a core node, so flavors
+     * address it by a qualified key.
+     *
+     * @var string
+     */
+    private const SPOILER_KEY = NodeType::INLINE_EXTENSION . ':spoiler';
 
     private int $renderDepth = 0;
 
@@ -148,6 +157,7 @@ final class ChatPreviewRenderer implements RendererInterface
         }
 
         return match ($nodeType) {
+            self::SPOILER_KEY => ['<span class="spoiler">', '</span>'],
             NodeType::CODE => ['<code>', '</code>'],
             NodeType::CODE_BLOCK => ['<pre><code>', '</code></pre>'],
             NodeType::BLOCKQUOTE => ['<blockquote>', '</blockquote>'],
@@ -177,7 +187,7 @@ final class ChatPreviewRenderer implements RendererInterface
     {
         $candidates = array_merge(
             array_keys(self::MARK_TAGS),
-            [NodeType::CODE, NodeType::CODE_BLOCK, NodeType::BLOCKQUOTE, NodeType::LINK],
+            [NodeType::CODE, NodeType::CODE_BLOCK, NodeType::BLOCKQUOTE, NodeType::LINK, self::SPOILER_KEY],
         );
 
         foreach ($candidates as $nodeType) {
@@ -251,6 +261,7 @@ final class ChatPreviewRenderer implements RendererInterface
             $node instanceof ListBlock => $this->renderList($node),
             $node instanceof ListItem => '<li>' . $this->itemContent($node) . '</li>',
             $node instanceof CodeBlock => '<pre><code>' . $this->escape($node->getContent()) . '</code></pre>',
+            $node instanceof InlineExtension => $this->renderInlineExtension($node),
             $node instanceof Code => $this->renderCode($node),
             $node instanceof Table => $this->renderTable($node),
             $node instanceof Link => $this->renderLink($node),
@@ -276,6 +287,22 @@ final class ChatPreviewRenderer implements RendererInterface
         $level = min(max($node->getLevel(), 1), 6);
 
         return '<h' . $level . '>' . $inner . '</h' . $level . '>';
+    }
+
+    /**
+     * A spoiler is hidden until tapped, so the preview shows it concealed
+     * rather than as ordinary text.
+     */
+    private function renderInlineExtension(InlineExtension $node): string
+    {
+        $inner = $this->renderChildren($node);
+        $key = NodeType::INLINE_EXTENSION . ':' . $node->getExtensionType();
+
+        if ($node->getExtensionType() === 'spoiler' && $this->flavor->supports($key)) {
+            return '<span class="spoiler">' . $inner . '</span>';
+        }
+
+        return $inner;
     }
 
     private function renderCode(Code $node): string

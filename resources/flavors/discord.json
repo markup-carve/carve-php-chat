@@ -181,9 +181,8 @@
       "fallback": "carve"
     },
     "highlight": {
-      "support": "native",
-      "open": "||",
-      "close": "||"
+      "support": "none",
+      "fallback": "carve"
     },
     "insert": {
       "support": "none",
@@ -204,6 +203,11 @@
     "abbreviation": {
       "support": "none",
       "fallback": "unwrap"
+    },
+    "inline_extension:spoiler": {
+      "support": "native",
+      "open": "||",
+      "close": "||"
     }
   }
 }

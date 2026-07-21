@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MarkupCarve\Chat\Test\TestCase;
 
 use MarkupCarve\Carve\CarveConverter;
+use MarkupCarve\Carve\Extension\SpoilerExtension;
 use MarkupCarve\Carve\Node\Block\BlockQuote;
 use MarkupCarve\Carve\Node\Block\Footnote;
 use MarkupCarve\Carve\Node\Block\Heading;
@@ -166,6 +167,66 @@ final class ChatRendererTest extends TestCase
 
         self::assertStringContainsString('keep inline', $rendered);
         self::assertStringContainsString('keep block', $rendered);
+    }
+
+    /**
+     * Highlight is `{=mark=}` - emphasis. Spoiler is a separate Carve
+     * extension meaning concealment. Mapping highlight onto a platform spoiler
+     * inverts the author's intent: it hides text that was meant to stand out.
+     */
+    public function testHighlightIsNotTreatedAsASpoiler(): void
+    {
+        $document = CarveConverter::create()->parse('A {=mark=} here.');
+        $registry = new FlavorRegistry();
+
+        foreach (['discord', 'telegram-html', 'signal', 'whatsapp'] as $id) {
+            $rendered = (new ChatRenderer($registry->get($id)))->render($document);
+            self::assertStringNotContainsString('||', $rendered, $id);
+            self::assertStringNotContainsString('spoiler', $rendered, $id);
+            self::assertStringContainsString('{=mark=}', $rendered, $id);
+        }
+    }
+
+    /**
+     * Carve's real spoiler is an extension, addressed by a qualified node key
+     * so a flavor maps that one extension rather than every extension.
+     */
+    public function testSpoilerExtensionMapsToEachTargetsOwnSpoiler(): void
+    {
+        $converter = CarveConverter::create();
+        $converter->addExtension(new SpoilerExtension());
+        $document = $converter->parse('A :spoiler[hidden] here.');
+        $registry = new FlavorRegistry();
+
+        self::assertSame(
+            "A ||hidden|| here.\n",
+            (new ChatRenderer($registry->get('discord')))->render($document),
+        );
+        self::assertSame(
+            "A <tg-spoiler>hidden</tg-spoiler> here.\n",
+            (new ChatRenderer($registry->get('telegram-html')))->render($document),
+        );
+
+        $signal = (new ChatRenderer($registry->get('signal')))->renderResult($document);
+        self::assertSame("A hidden here.\n", $signal->text);
+        self::assertSame('SPOILER', $signal->ranges[0]->style);
+        self::assertSame('hidden', substr($signal->text, $signal->ranges[0]->start, $signal->ranges[0]->length));
+    }
+
+    /**
+     * A target with no spoiler of its own must still show the text - hiding is
+     * the one thing it cannot do, but dropping it would be worse.
+     */
+    public function testSpoilerFallsBackToPlainTextWhereUnsupported(): void
+    {
+        $converter = CarveConverter::create();
+        $converter->addExtension(new SpoilerExtension());
+        $document = $converter->parse('A :spoiler[hidden] here.');
+
+        self::assertSame(
+            "A hidden here.\n",
+            (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->render($document),
+        );
     }
 
     private function richDocument(): Document

@@ -75,7 +75,10 @@ final readonly class ChatFlavor
         }
 
         foreach ($nodes as $nodeType => $config) {
-            if (!in_array($nodeType, self::knownNodeTypes(), true)) {
+            // An extension-qualified key such as `inline_extension:spoiler`
+            // targets one extension rather than every extension at once.
+            $base = str_contains($nodeType, ':') ? strstr($nodeType, ':', true) : $nodeType;
+            if (!in_array($base, self::knownNodeTypes(), true)) {
                 throw new InvalidFlavorException(sprintf('Unknown node type "%s" in flavor "%s".', $nodeType, $id));
             }
 

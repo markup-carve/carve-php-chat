@@ -175,6 +175,20 @@ $flavor = (new FlavorRegistry())->fromJsonFile('/path/to/zulip.json');
 
 Node types not listed are treated as unsupported and degrade via their fallback.
 
+### Extensions
+
+An extension is addressed by a qualified key, so a flavor maps that one
+extension rather than claiming every extension at once. Carve's spoiler is an
+extension, and several targets have a real spoiler of their own:
+
+```json
+"inline_extension:spoiler": { "support": "native", "open": "||", "close": "||" }
+```
+
+Note that `highlight` (`{=mark=}`) is **not** a spoiler. Highlight emphasizes,
+a spoiler conceals; mapping one onto the other inverts what the author meant.
+No target has a highlight, so it keeps its Carve markup.
+
 ### Deriving from an existing flavor
 
 `extends` merges a parent, with the child's keys winning, so a tweak is a few

@@ -36,6 +36,7 @@ use MarkupCarve\Carve\Node\Inline\HardBreak;
 use MarkupCarve\Carve\Node\Inline\HeadingRef;
 use MarkupCarve\Carve\Node\Inline\Highlight;
 use MarkupCarve\Carve\Node\Inline\Image;
+use MarkupCarve\Carve\Node\Inline\InlineExtension;
 use MarkupCarve\Carve\Node\Inline\InlineFootnote;
 use MarkupCarve\Carve\Node\Inline\Insert;
 use MarkupCarve\Carve\Node\Inline\Link;
@@ -197,6 +198,10 @@ final class ChatRenderer implements RendererInterface
             return $this->renderChildren($node);
         }
 
+        if ($node instanceof InlineExtension) {
+            return $this->renderInlineExtension($node);
+        }
+
         if (!$this->flavor->supports($node->getType())) {
             return $this->renderFallback($node);
         }
@@ -319,6 +324,31 @@ final class ChatRenderer implements RendererInterface
             return $this->markStyled($node->getType(), $this->renderChildren($node));
         }
 
+        $open = is_string($config['open'] ?? null) ? $config['open'] : '';
+        $close = is_string($config['close'] ?? null) ? $config['close'] : '';
+
+        return $open . $this->renderChildren($node) . $close;
+    }
+
+    /**
+     * An extension is addressed by a qualified key, so a flavor can map Carve's
+     * spoiler without claiming every extension that exists.
+     *
+     * Spoiler is an extension rather than a core node, but several targets have
+     * a real spoiler of their own, so it is worth mapping precisely.
+     */
+    private function renderInlineExtension(InlineExtension $node): string
+    {
+        $key = NodeType::INLINE_EXTENSION . ':' . $node->getExtensionType();
+        if (!$this->flavor->supports($key)) {
+            return $this->renderChildren($node);
+        }
+
+        if ($this->rangeMode && $this->flavor->styleFor($key) !== null) {
+            return $this->markStyled($key, $this->renderChildren($node));
+        }
+
+        $config = $this->flavor->emission($key) ?? [];
         $open = is_string($config['open'] ?? null) ? $config['open'] : '';
         $close = is_string($config['close'] ?? null) ? $config['close'] : '';
 

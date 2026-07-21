@@ -30,8 +30,8 @@
       "style": "strikethrough"
     },
     "highlight": {
-      "support": "native",
-      "style": "spoiler"
+      "support": "none",
+      "fallback": "carve"
     },
     "code": {
       "support": "native",
@@ -59,6 +59,10 @@
       "fallback": "inline",
       "template": "{content}",
       "style": "bold"
+    },
+    "inline_extension:spoiler": {
+      "support": "native",
+      "style": "spoiler"
     }
   }
 }

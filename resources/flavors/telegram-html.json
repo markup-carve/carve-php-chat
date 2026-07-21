@@ -183,9 +183,8 @@
       "fallback": "carve"
     },
     "highlight": {
-      "support": "native",
-      "open": "<tg-spoiler>",
-      "close": "</tg-spoiler>"
+      "support": "none",
+      "fallback": "carve"
     },
     "insert": {
       "support": "none",
@@ -206,6 +205,11 @@
     "abbreviation": {
       "support": "none",
       "fallback": "unwrap"
+    },
+    "inline_extension:spoiler": {
+      "support": "native",
+      "open": "<tg-spoiler>",
+      "close": "</tg-spoiler>"
     }
   }
 }
