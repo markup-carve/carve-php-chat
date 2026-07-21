@@ -60,6 +60,7 @@ foreach ($result->losses as $loss) {
 | `telegram-html` | HTML parse mode: `<b> <i> <u> <s> <code> <pre> <a> <blockquote> <tg-spoiler>`. |
 | `discord` | Headings and lists are native. Masked links are **not**, in user-typed messages. |
 | `discord-bot` | `extends: discord`, with masked links enabled. |
+| `signal` | Plain text only - Signal has no text markup at all. See below. |
 
 ### Why Discord has two flavors
 
@@ -69,6 +70,24 @@ that trade-off deliberately, to stop malicious URLs hiding behind innocent text.
 
 So pick `discord` when the output is pasted by a person, and `discord-bot` when
 your bot posts it. The two files differ by one key.
+
+### Why Signal emits no markup
+
+Signal does not parse markup in message bodies. Its documentation states that
+Markdown "is not supported at this time and is not planned" - formatting is
+applied by selecting text in the UI and travels as out-of-band style metadata,
+not as delimiters. A typed `*bold*` stays literally `*bold*`.
+
+So the `signal` flavor emits clean plain text and reports every mark it dropped.
+The loss report is the point: it tells you exactly which spans to re-apply by
+hand after pasting.
+
+This also marks the edge of the current model. Chat targets split into two
+families: **delimiter-based** (WhatsApp, Slack, Telegram `parse_mode`, Discord),
+where formatting lives in the string, and **range-based** (Signal, Telegram's
+`entities` API, Slack Block Kit), where it is plain text plus style offsets.
+This package handles the first. Supporting the second would mean an
+`"output": "markup" | "ranges"` mode in the schema.
 
 ## Custom flavors
 

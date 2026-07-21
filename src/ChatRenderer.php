@@ -232,7 +232,7 @@ final class ChatRenderer implements RendererInterface
         $this->recordLoss($node, $fallback, sprintf('Node "%s" is not native in %s.', $node->getType(), $this->flavor->id()));
 
         return match ($fallback) {
-            Fallback::Unwrap => $node instanceof ListBlock ? $this->renderList($node, true) : $this->renderChildren($node),
+            Fallback::Unwrap => $this->unwrapFallback($node),
             Fallback::Inline => $this->renderInlineBlockAwareFallback($node),
             Fallback::CodeBlock => $node instanceof Table ? $this->renderTableCodeBlock($node) : $this->renderCodeBlockFallback($node),
             Fallback::Appendix => $this->appendixFallback($node),
@@ -270,6 +270,13 @@ final class ChatRenderer implements RendererInterface
         $language = $this->stripControls($node->getLanguage() ?? '');
         $language = preg_split('/\s/', $language, 2)[0] ?? '';
 
+        // The language tag is part of the fence syntax. A flavor with no opening
+        // delimiter has nowhere to hang it, and emitting it anyway would drop a
+        // bare `php` line into the message body.
+        if ($open === '') {
+            $language = '';
+        }
+
         $content = $this->flavor->escaper()->escapeVerbatim($this->stripControls($node->getContent()));
 
         if (self::isBacktickRun($open) && self::isBacktickRun($close)) {
@@ -301,6 +308,40 @@ final class ChatRenderer implements RendererInterface
         $pad = str_starts_with($content, '`') || str_ends_with($content, '`') ? ' ' : '';
 
         return $fence . $pad . $content . $pad . $fence;
+    }
+
+    /**
+     * Unwrapping emits the children without their markup. Nodes that carry
+     * their payload as content rather than children - code blocks, math, raw -
+     * have no children to emit, so fall back to that content instead of
+     * silently dropping it.
+     */
+    private function unwrapFallback(Node $node): string
+    {
+        if ($node instanceof ListBlock) {
+            return $this->renderList($node, true);
+        }
+
+        $rendered = $this->renderChildren($node);
+        if ($rendered !== '') {
+            return $rendered;
+        }
+
+        $inline = $node instanceof Code || $node instanceof RawInline || $node instanceof RawText;
+
+        $content = match (true) {
+            $node instanceof CodeBlock, $node instanceof RawBlock, $node instanceof Math,
+            $node instanceof Code, $node instanceof RawInline, $node instanceof RawText => $node->getContent(),
+            default => '',
+        };
+
+        if ($content === '') {
+            return '';
+        }
+
+        $content = $this->flavor->escaper()->escapeVerbatim($this->stripControls($content));
+
+        return $inline ? $content : $content . "\n\n";
     }
 
     private function escapeText(string $content): string

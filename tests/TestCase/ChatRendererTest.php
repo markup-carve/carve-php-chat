@@ -128,6 +128,41 @@ final class ChatRendererTest extends TestCase
         self::assertSame('Ping @alice here.' . "\n", $rendered);
     }
 
+    /**
+     * Signal carries formatting as out-of-band style ranges applied in its UI,
+     * not as delimiters in the message body, so a typed `*bold*` would stay
+     * literal. The flavor therefore emits plain text and reports every mark it
+     * had to drop, which is what tells the user what to re-apply by hand.
+     */
+    public function testSignalEmitsPlainTextAndReportsEveryMark(): void
+    {
+        $source = "# Title\n\nShipped /today/: *bold*, ~struck~ and `code`.\n";
+        $document = CarveConverter::create()->parse($source);
+
+        $result = (new ChatRenderer((new FlavorRegistry())->get('signal')))->renderResult($document);
+
+        self::assertSame("Title\n\nShipped today: bold, struck and code.\n", $result->text);
+        self::assertSame(
+            ['heading', 'emphasis', 'strong', 'strike', 'code'],
+            array_map(static fn ($loss): string => $loss->nodeType, $result->losses),
+        );
+    }
+
+    /**
+     * Code blocks and code spans carry their payload as content rather than
+     * children, so unwrapping them by rendering children alone would silently
+     * delete the code.
+     */
+    public function testUnwrappingAContentBearingNodeKeepsItsPayload(): void
+    {
+        $document = CarveConverter::create()->parse("Run `keep inline`.\n\n~~~\nkeep block\n~~~\n");
+
+        $rendered = (new ChatRenderer((new FlavorRegistry())->get('signal')))->render($document);
+
+        self::assertStringContainsString('keep inline', $rendered);
+        self::assertStringContainsString('keep block', $rendered);
+    }
+
     private function richDocument(): Document
     {
         $document = new Document();

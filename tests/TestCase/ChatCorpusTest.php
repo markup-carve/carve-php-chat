@@ -17,10 +17,17 @@ final class ChatCorpusTest extends TestCase
      */
     public static function corpusProvider(): array
     {
+        // Derived from the registry, not a hard-coded list: adding a flavor must
+        // pick up corpus coverage on its own rather than passing unnoticed.
+        $targets = [];
+        foreach ((new FlavorRegistry())->ids() as $id) {
+            $targets[] = $id === 'telegram-html' ? 'telegram' : $id;
+        }
+
         $cases = [];
         foreach (glob(__DIR__ . '/../corpus-chat/*.crv') ?: [] as $sourcePath) {
             $slug = basename($sourcePath, '.crv');
-            foreach (['whatsapp', 'slack', 'telegram', 'discord'] as $target) {
+            foreach ($targets as $target) {
                 $expectedPath = dirname($sourcePath) . '/' . $slug . '.' . $target;
                 if (is_file($expectedPath)) {
                     $cases[$slug . ' ' . $target] = [$sourcePath, $target, $expectedPath];
