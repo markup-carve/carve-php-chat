@@ -1,0 +1,8 @@
+{
+  "id": "telegram-plainquote",
+  "label": "Telegram (plain quote)",
+  "extends": "telegram-html",
+  "nodes": {
+    "block_quote": { "support": "native", "prefix": "| " }
+  }
+}

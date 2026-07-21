@@ -237,7 +237,13 @@ final readonly class ChatFlavor
         $merged = array_replace_recursive($parent, $child);
         $parentNodes = isset($parent['nodes']) && is_array($parent['nodes']) ? $parent['nodes'] : [];
         $childNodes = isset($child['nodes']) && is_array($child['nodes']) ? $child['nodes'] : [];
-        $merged['nodes'] = array_replace_recursive($parentNodes, $childNodes);
+
+        // A declared node entry replaces the parent's outright rather than
+        // merging into it. Merging meant an override had to null out every key
+        // the parent happened to set - redeclaring `open`/`close` did not
+        // dislodge an inherited `template`, so the parent's markup leaked
+        // through. Node entries are small and self-contained; state one fully.
+        $merged['nodes'] = array_replace($parentNodes, $childNodes);
 
         return $merged;
     }

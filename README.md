@@ -163,7 +163,9 @@ Node types not listed are treated as unsupported and degrade via their fallback.
 ### Deriving from an existing flavor
 
 `extends` merges a parent, with the child's keys winning, so a tweak is a few
-lines rather than a full restatement:
+lines rather than a full restatement. A node entry you declare **replaces** the
+inherited one outright, so state it fully - otherwise a key you did not restate
+(a parent's `template`, say) would stay in charge:
 
 ```json
 {

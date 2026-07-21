@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MarkupCarve\Chat\Test\TestCase;
 
+use MarkupCarve\Carve\CarveConverter;
 use MarkupCarve\Carve\Node\Block\Heading;
 use MarkupCarve\Carve\Node\Block\Paragraph;
 use MarkupCarve\Carve\Node\Document;
@@ -61,5 +62,20 @@ final class CustomFlavorTest extends TestCase
 
         self::assertSame(LinkStyle::SlackPipe, $flavor->linkStyle());
         self::assertSame("*Title*\n\n*bold*\n", $result->text);
+    }
+
+    /**
+     * A declared node entry replaces the inherited one outright. Merging meant
+     * a child could not dislodge a key it did not restate: redeclaring the
+     * quote prefix left the parent's `template` in charge, and the parent's
+     * markup leaked into the output.
+     */
+    public function testDeclaredNodeReplacesTheInheritedEntry(): void
+    {
+        $flavor = (new FlavorRegistry())->fromJsonFile(__DIR__ . '/../fixtures/flavors/quote-override.json');
+
+        $document = CarveConverter::create()->parse("> quoted\n");
+
+        self::assertSame("| quoted\n", (new ChatRenderer($flavor))->render($document));
     }
 }
