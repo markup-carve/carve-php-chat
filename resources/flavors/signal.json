@@ -103,20 +103,20 @@
       "support": "native"
     },
     "emphasis": {
-      "support": "none",
-      "fallback": "unwrap"
+      "support": "native",
+      "style": "ITALIC"
     },
     "strong": {
-      "support": "none",
-      "fallback": "unwrap"
+      "support": "native",
+      "style": "BOLD"
     },
     "underline": {
       "support": "none",
       "fallback": "unwrap"
     },
     "strike": {
-      "support": "none",
-      "fallback": "unwrap"
+      "support": "native",
+      "style": "STRIKETHROUGH"
     },
     "inline_extension": {
       "support": "none",
@@ -127,8 +127,8 @@
       "fallback": "unwrap"
     },
     "code": {
-      "support": "none",
-      "fallback": "unwrap"
+      "support": "native",
+      "style": "MONOSPACE"
     },
     "link": {
       "support": "none",
@@ -177,8 +177,8 @@
       "fallback": "unwrap"
     },
     "highlight": {
-      "support": "none",
-      "fallback": "unwrap"
+      "support": "native",
+      "style": "SPOILER"
     },
     "insert": {
       "support": "none",
@@ -200,5 +200,7 @@
       "support": "none",
       "fallback": "unwrap"
     }
-  }
+  },
+  "output": "ranges",
+  "offsets": "utf16"
 }

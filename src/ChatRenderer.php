@@ -99,6 +99,17 @@ final class ChatRenderer implements RendererInterface
      */
     private bool $verbatim = false;
 
+    private bool $rangeMode = false;
+
+    /**
+     * Style name per marker id, resolved when the markers are extracted.
+     *
+     * @var array<int, string>
+     */
+    private array $styleNames = [];
+
+    private int $markerId = 0;
+
     public function __construct(private readonly ChatFlavor $flavor)
     {
     }
@@ -116,6 +127,9 @@ final class ChatRenderer implements RendererInterface
         $this->appendixCounter = 0;
         $this->renderDepth = 0;
         $this->listDepth = 0;
+        $this->styleNames = [];
+        $this->markerId = 0;
+        $this->rangeMode = $this->flavor->output() === OutputMode::Ranges;
 
         $text = $this->renderNode($document);
         $appendix = $this->appendix;
@@ -132,6 +146,11 @@ final class ChatRenderer implements RendererInterface
         $text = trim($text) . "\n";
         $text = str_replace("\u{E000}", ' ', $text);
 
+        $ranges = [];
+        if ($this->rangeMode) {
+            [$text, $ranges] = $this->extractRanges($text);
+        }
+
         $limit = $this->flavor->messageLimit();
         if ($limit !== null && strlen($text) > $limit) {
             $this->losses[] = new Loss(
@@ -142,7 +161,7 @@ final class ChatRenderer implements RendererInterface
             );
         }
 
-        return new ChatResult($text, $this->losses);
+        return new ChatResult($text, $this->losses, $ranges);
     }
 
     /**
@@ -247,10 +266,118 @@ final class ChatRenderer implements RendererInterface
             return $this->applyTemplate($config['template'], $node, $this->renderChildren($node));
         }
 
+        if ($this->rangeMode) {
+            return $this->markStyled($node->getType(), $this->renderChildren($node));
+        }
+
         $open = is_string($config['open'] ?? null) ? $config['open'] : '';
         $close = is_string($config['close'] ?? null) ? $config['close'] : '';
 
         return $open . $this->renderChildren($node) . $close;
+    }
+
+    /**
+     * Recovers the styled spans from the assembled message and strips the
+     * markers back out.
+     *
+     * @return array{0: string, 1: array<\MarkupCarve\Chat\StyleRange>}
+     */
+    private function extractRanges(string $text): array
+    {
+        $clean = '';
+        $open = [];
+        $spans = [];
+        $offset = 0;
+        $length = strlen($text);
+
+        while ($offset < $length) {
+            $plain = strcspn($text, "\x01\x03", $offset);
+            if ($plain > 0) {
+                $clean .= substr($text, $offset, $plain);
+                $offset += $plain;
+
+                continue;
+            }
+
+            $isOpen = $text[$offset] === "\x01";
+            $end = strpos($text, $isOpen ? "\x02" : "\x04", $offset);
+            if ($end === false) {
+                $clean .= $text[$offset];
+                $offset++;
+
+                continue;
+            }
+
+            $id = (int)substr($text, $offset + 1, $end - $offset - 1);
+            $offset = $end + 1;
+
+            if ($isOpen) {
+                $open[$id] = strlen($clean);
+
+                continue;
+            }
+
+            if (!isset($open[$id], $this->styleNames[$id])) {
+                continue;
+            }
+
+            $start = $open[$id];
+            unset($open[$id]);
+            if (strlen($clean) > $start) {
+                $spans[] = [$start, strlen($clean) - $start, $this->styleNames[$id]];
+            }
+        }
+
+        usort($spans, static fn (array $a, array $b): int => $a[0] <=> $b[0] ?: $a[1] <=> $b[1]);
+
+        $ranges = [];
+        foreach ($spans as [$start, $len, $style]) {
+            $ranges[] = new StyleRange(
+                start: $this->countUnits(substr($clean, 0, $start)),
+                length: $this->countUnits(substr($clean, $start, $len)),
+                style: $style,
+            );
+        }
+
+        return [$clean, $ranges];
+    }
+
+    /**
+     * Measures a string in the flavor's offset unit.
+     *
+     * Telegram documents its entity offsets in UTF-16 code units, so a
+     * character outside the BMP counts as two. Measuring in the wrong unit
+     * shifts every range that follows such a character.
+     */
+    private function countUnits(string $text): int
+    {
+        return match ($this->flavor->offsetUnit()) {
+            OffsetUnit::Utf8 => strlen($text),
+            OffsetUnit::Codepoints => mb_strlen($text, 'UTF-8'),
+            OffsetUnit::Utf16 => (int)(strlen(mb_convert_encoding($text, 'UTF-16LE', 'UTF-8')) / 2),
+        };
+    }
+
+    /**
+     * Wraps content in marker sentinels so its offsets can be recovered once
+     * the whole message is assembled.
+     *
+     * The renderer concatenates return values, so a node cannot know its
+     * absolute position while it renders. Control characters other than tab
+     * and newline are stripped from all document text, so these markers can
+     * never collide with content.
+     */
+    private function markStyled(string $nodeType, string $content): string
+    {
+        $style = $this->flavor->styleFor($nodeType);
+        if ($style === null || $content === '') {
+            return $content;
+        }
+
+        $id = $this->markerId++;
+        $this->styleNames[$id] = $style;
+
+        return "\x01" . $id . "\x02" . $content . "\x03" . $id . "\x04";
     }
 
     private function renderHeading(Heading $node): string
@@ -299,6 +426,10 @@ final class ChatRenderer implements RendererInterface
         $open = is_string($config['open'] ?? null) ? $config['open'] : '`';
         $close = is_string($config['close'] ?? null) ? $config['close'] : '`';
         $content = $this->flavor->escaper()->escapeVerbatim($this->stripControls($content));
+
+        if ($this->rangeMode) {
+            return $this->markStyled($nodeType, $content);
+        }
 
         if (!self::isBacktickRun($open) || !self::isBacktickRun($close)) {
             return $open . $content . $close;

@@ -28,6 +28,8 @@ final readonly class ChatFlavor
      * @param array<string, array<string, mixed>> $nodes
      * @param array $data
      * @param int|null $messageLimit
+     * @param \MarkupCarve\Chat\OffsetUnit $offsetUnit
+     * @param \MarkupCarve\Chat\OutputMode $output
      * @param \MarkupCarve\Chat\Escaper $escaper
      * @param \MarkupCarve\Chat\LinkStyle $linkStyle
      */
@@ -39,6 +41,8 @@ final readonly class ChatFlavor
         private LinkStyle $linkStyle,
         private Escaper $escaper,
         private ?int $messageLimit,
+        private OutputMode $output,
+        private OffsetUnit $offsetUnit,
         /** @var array<string, mixed> */
         private array $data,
     ) {
@@ -91,6 +95,16 @@ final readonly class ChatFlavor
             throw new InvalidFlavorException(sprintf('Unknown escape mechanism in flavor "%s".', $id));
         }
 
+        $output = OutputMode::tryFrom((string)($data['output'] ?? OutputMode::Markup->value));
+        if ($output === null) {
+            throw new InvalidFlavorException(sprintf('Unknown output mode in flavor "%s".', $id));
+        }
+
+        $offsetUnit = OffsetUnit::tryFrom((string)($data['offsets'] ?? OffsetUnit::Utf16->value));
+        if ($offsetUnit === null) {
+            throw new InvalidFlavorException(sprintf('Unknown offset unit in flavor "%s".', $id));
+        }
+
         $limits = self::arrayValue($data, 'limits');
         $messageLimit = isset($limits['message']) && is_int($limits['message']) ? $limits['message'] : null;
         $data['nodes'] = $nodes;
@@ -103,6 +117,8 @@ final readonly class ChatFlavor
             linkStyle: $style,
             escaper: new Escaper($mechanism, is_string($escape['chars'] ?? null) ? $escape['chars'] : ''),
             messageLimit: $messageLimit,
+            output: $output,
+            offsetUnit: $offsetUnit,
             data: $data,
         );
     }
@@ -160,6 +176,27 @@ final readonly class ChatFlavor
     public function messageLimit(): ?int
     {
         return $this->messageLimit;
+    }
+
+    public function output(): OutputMode
+    {
+        return $this->output;
+    }
+
+    public function offsetUnit(): OffsetUnit
+    {
+        return $this->offsetUnit;
+    }
+
+    /**
+     * The style name a range-based target uses for this node, e.g. Signal's
+     * `BOLD` or Telegram's `bold`. Null when the node carries no style.
+     */
+    public function styleFor(string $nodeType): ?string
+    {
+        $style = $this->nodes[$nodeType]['style'] ?? null;
+
+        return is_string($style) && $style !== '' ? $style : null;
     }
 
     public function toProfile(): Profile

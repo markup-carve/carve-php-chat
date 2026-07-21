@@ -1,0 +1,60 @@
+{
+  "id": "telegram-entities",
+  "label": "Telegram (entities)",
+  "extends": "telegram-html",
+  "verified": "2026-07-21",
+  "output": "ranges",
+  "offsets": "utf16",
+  "link": {
+    "style": "none"
+  },
+  "escape": {
+    "mechanism": "none",
+    "chars": ""
+  },
+  "nodes": {
+    "strong": {
+      "support": "native",
+      "style": "bold"
+    },
+    "emphasis": {
+      "support": "native",
+      "style": "italic"
+    },
+    "underline": {
+      "support": "native",
+      "style": "underline"
+    },
+    "strike": {
+      "support": "native",
+      "style": "strikethrough"
+    },
+    "highlight": {
+      "support": "native",
+      "style": "spoiler"
+    },
+    "code": {
+      "support": "native",
+      "style": "code"
+    },
+    "code_block": {
+      "support": "native",
+      "open": "",
+      "close": ""
+    },
+    "block_quote": {
+      "support": "native",
+      "prefix": "> "
+    },
+    "link": {
+      "support": "none",
+      "fallback": "inline",
+      "template": "{content} ({url})"
+    },
+    "image": {
+      "support": "none",
+      "fallback": "inline",
+      "template": "{alt} ({url})"
+    }
+  }
+}

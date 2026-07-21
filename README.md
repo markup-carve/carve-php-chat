@@ -60,7 +60,8 @@ foreach ($result->losses as $loss) {
 | `telegram-html` | HTML parse mode: `<b> <i> <u> <s> <code> <pre> <a> <blockquote> <tg-spoiler>`. |
 | `discord` | Headings and lists are native. Masked links are **not**, in user-typed messages. |
 | `discord-bot` | `extends: discord`, with masked links enabled. |
-| `signal` | Plain text only - Signal has no text markup at all. See below. |
+| `signal` | Range-based: plain text plus style offsets. See below. |
+| `telegram-entities` | Range-based variant of Telegram, for the Bot API `entities` field. |
 
 ### Why Discord has two flavors
 
@@ -71,23 +72,55 @@ that trade-off deliberately, to stop malicious URLs hiding behind innocent text.
 So pick `discord` when the output is pasted by a person, and `discord-bot` when
 your bot posts it. The two files differ by one key.
 
-### Why Signal emits no markup
+## Two families of target
 
-Signal does not parse markup in message bodies. Its documentation states that
-Markdown "is not supported at this time and is not planned" - formatting is
-applied by selecting text in the UI and travels as out-of-band style metadata,
-not as delimiters. A typed `*bold*` stays literally `*bold*`.
+Chat platforms carry formatting in one of two ways, and a flavor declares which
+with `output`:
 
-So the `signal` flavor emits clean plain text and reports every mark it dropped.
-The loss report is the point: it tells you exactly which spans to re-apply by
-hand after pasting.
+- **`markup`** (the default) - formatting lives in the message string as
+  delimiters. WhatsApp, Slack, Telegram `parse_mode`, Discord.
+- **`ranges`** - the body is plain text and the formatting travels beside it as
+  offsets. Signal, Telegram's `entities` field, Slack Block Kit.
 
-This also marks the edge of the current model. Chat targets split into two
-families: **delimiter-based** (WhatsApp, Slack, Telegram `parse_mode`, Discord),
-where formatting lives in the string, and **range-based** (Signal, Telegram's
-`entities` API, Slack Block Kit), where it is plain text plus style offsets.
-This package handles the first. Supporting the second would mean an
-`"output": "markup" | "ranges"` mode in the schema.
+Signal is the clearest case: its documentation states that Markdown "is not
+supported at this time and is not planned". Formatting is applied by selecting
+text in the UI, so a typed `*bold*` stays literally `*bold*` - but the message
+still *displays* as bold, because the style rides along separately.
+
+A range-based flavor names a `style` per node instead of delimiters:
+
+```json
+"strong": { "support": "native", "style": "BOLD" }
+```
+
+`ChatResult` then carries the spans:
+
+```php
+$result = (new ChatRenderer($registry->get('signal')))->renderResult($document);
+
+$result->text;             // "Shipped bold and em." - no delimiters
+$result->rangesToArray();  // [['start' => 8, 'length' => 4, 'style' => 'BOLD'], ...]
+```
+
+### Offsets are counted in a declared unit
+
+`offsets` is `utf16` (default), `utf8` or `codepoints`. This is not a detail to
+guess at - Telegram documents its entity offsets in UTF-16 code units, so a
+character outside the BMP counts as two:
+
+| unit | `start` of the bold span in `👍 *bold*` |
+|------|------|
+| `utf16` | 3 |
+| `utf8` | 5 |
+| `codepoints` | 2 |
+
+Measuring in the wrong unit shifts every range after the first such character.
+
+### Current limit
+
+A style range has no payload slot, so a link cannot become a Telegram
+`text_link` entity yet. Range-based flavors inline the URL instead of dropping
+it.
 
 ## Custom flavors
 
@@ -145,6 +178,9 @@ Keyed by `MarkupCarve\Carve\NodeType` constants.
 | `fallback` | `unwrap`, `inline`, `codeblock`, `appendix`, `drop` |
 | `link.style` | `none`, `markdown`, `slackPipe`, `html` |
 | `escape.mechanism` | `backslash`, `entities`, `none` |
+| `output` | `markup` (default), `ranges` |
+| `offsets` | `utf16` (default), `utf8`, `codepoints` - range-based only |
+| `style` | style name per node, range-based only (e.g. `BOLD`) |
 
 Template placeholders: `{content}`, `{url}`, `{alt}`, `{title}`, `{hashes}`.
 

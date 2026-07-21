@@ -3,7 +3,17 @@
     "description": "Render Carve documents to chat-platform markup (WhatsApp, Slack, Telegram, Discord) via data-driven flavor definitions.",
     "type": "library",
     "license": "MIT",
-    "keywords": ["carve", "markup", "chat", "slack", "telegram", "discord", "whatsapp", "mrkdwn", "export"],
+    "keywords": [
+        "carve",
+        "markup",
+        "chat",
+        "slack",
+        "telegram",
+        "discord",
+        "whatsapp",
+        "mrkdwn",
+        "export"
+    ],
     "authors": [
         {
             "name": "Mark Scherer",
@@ -17,6 +27,7 @@
     "require": {
         "php": ">=8.2",
         "ext-json": "*",
+        "ext-mbstring": "*",
         "markup-carve/carve-php": "^0.1.2"
     },
     "require-dev": {

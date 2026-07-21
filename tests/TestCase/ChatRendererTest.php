@@ -129,12 +129,12 @@ final class ChatRendererTest extends TestCase
     }
 
     /**
-     * Signal carries formatting as out-of-band style ranges applied in its UI,
-     * not as delimiters in the message body, so a typed `*bold*` would stay
-     * literal. The flavor therefore emits plain text and reports every mark it
-     * had to drop, which is what tells the user what to re-apply by hand.
+     * Signal carries formatting as style ranges over a plain-text body rather
+     * than as delimiters, so the marks survive as offsets and the body stays
+     * free of markup. Only the heading, which has no style to map onto, is a
+     * genuine loss.
      */
-    public function testSignalEmitsPlainTextAndReportsEveryMark(): void
+    public function testSignalEmitsPlainTextWithStyleRanges(): void
     {
         $source = "# Title\n\nShipped /today/: *bold*, ~struck~ and `code`.\n";
         $document = CarveConverter::create()->parse($source);
@@ -143,8 +143,12 @@ final class ChatRendererTest extends TestCase
 
         self::assertSame("Title\n\nShipped today: bold, struck and code.\n", $result->text);
         self::assertSame(
-            ['heading', 'emphasis', 'strong', 'strike', 'code'],
+            ['heading'],
             array_map(static fn ($loss): string => $loss->nodeType, $result->losses),
+        );
+        self::assertSame(
+            ['ITALIC', 'BOLD', 'STRIKETHROUGH', 'MONOSPACE'],
+            array_map(static fn ($range): string => $range->style, $result->ranges),
         );
     }
 
