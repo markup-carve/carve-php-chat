@@ -124,11 +124,26 @@ character outside the BMP counts as two:
 
 Measuring in the wrong unit shifts every range after the first such character.
 
-### Current limit
+### Styles that carry more than a name
 
-A style range has no payload slot, so a link cannot become a Telegram
-`text_link` entity yet. Range-based flavors inline the URL instead of dropping
-it.
+Once the delimiters are gone, the body has no room for a URL or a language, so
+the range carries them:
+
+```php
+$result->rangesToArray();
+// [
+//   ['start' => 0,  'length' => 4, 'style' => 'text_link', 'url' => 'https://e.com/a'],
+//   ['start' => 6,  'length' => 6, 'style' => 'blockquote'],
+//   ['start' => 14, 'length' => 7, 'style' => 'pre', 'language' => 'php'],
+// ]
+```
+
+Ranges are not limited to inline marks: `blockquote` and `pre` cover whole
+blocks, so a range-based body needs no `> ` prefix and no fence.
+
+Style names are the target's own, so `rangesToArray()` is close to what its API
+wants. Telegram calls the fields `type`, `offset` and `length`, so a caller
+renames three keys rather than deriving anything.
 
 ## Custom flavors
 

@@ -108,6 +108,13 @@ final class ChatRenderer implements RendererInterface
      */
     private array $styleNames = [];
 
+    /**
+     * Extra fields per marker id, for styles that need more than a name.
+     *
+     * @var array<int, array<string, string>>
+     */
+    private array $styleData = [];
+
     private int $markerId = 0;
 
     public function __construct(private readonly ChatFlavor $flavor)
@@ -128,6 +135,7 @@ final class ChatRenderer implements RendererInterface
         $this->renderDepth = 0;
         $this->listDepth = 0;
         $this->styleNames = [];
+        $this->styleData = [];
         $this->markerId = 0;
         $this->rangeMode = $this->flavor->output() === OutputMode::Ranges;
 
@@ -365,18 +373,21 @@ final class ChatRenderer implements RendererInterface
             $start = $open[$id];
             unset($open[$id]);
             if (strlen($clean) > $start) {
-                $spans[] = [$start, strlen($clean) - $start, $this->styleNames[$id]];
+                $spans[] = [$start, strlen($clean) - $start, $this->styleNames[$id], $this->styleData[$id] ?? []];
             }
         }
 
-        usort($spans, static fn (array $a, array $b): int => $a[0] <=> $b[0] ?: $a[1] <=> $b[1]);
+        // Same start: the longer span is the outer one and must open first, or
+        // the preview would nest them inside out.
+        usort($spans, static fn (array $a, array $b): int => $a[0] <=> $b[0] ?: $b[1] <=> $a[1]);
 
         $ranges = [];
-        foreach ($spans as [$start, $len, $style]) {
+        foreach ($spans as [$start, $len, $style, $data]) {
             $ranges[] = new StyleRange(
                 start: $this->countUnits(substr($clean, 0, $start)),
                 length: $this->countUnits(substr($clean, $start, $len)),
                 style: $style,
+                data: $data,
             );
         }
 
@@ -408,7 +419,13 @@ final class ChatRenderer implements RendererInterface
      * and newline are stripped from all document text, so these markers can
      * never collide with content.
      */
-    private function markStyled(string $nodeType, string $content): string
+
+    /**
+     * @param string $nodeType
+     * @param string $content
+     * @param array<string, string> $data
+     */
+    private function markStyled(string $nodeType, string $content, array $data = []): string
     {
         $style = $this->flavor->styleFor($nodeType);
         if ($style === null || $content === '') {
@@ -417,6 +434,7 @@ final class ChatRenderer implements RendererInterface
 
         $id = $this->markerId++;
         $this->styleNames[$id] = $style;
+        $this->styleData[$id] = $data;
 
         return "\x01" . $id . "\x02" . $content . "\x03" . $id . "\x04";
     }
@@ -446,6 +464,12 @@ final class ChatRenderer implements RendererInterface
         }
 
         $content = $this->flavor->escaper()->escapeVerbatim($this->stripControls($node->getContent()));
+
+        if ($this->rangeMode && $this->flavor->styleFor($node->getType()) !== null) {
+            $data = $language === '' ? [] : ['language' => $language];
+
+            return $this->markStyled($node->getType(), $content, $data) . "\n\n";
+        }
 
         if (self::isBacktickRun($open) && self::isBacktickRun($close)) {
             $fence = StringUtil::findSafeCodeFence($content, strlen($open));
@@ -553,6 +577,10 @@ final class ChatRenderer implements RendererInterface
 
     private function renderBlockQuote(BlockQuote $node): string
     {
+        if ($this->rangeMode && $this->flavor->styleFor($node->getType()) !== null) {
+            return $this->markStyled($node->getType(), trim($this->renderChildren($node))) . "\n\n";
+        }
+
         $config = $this->flavor->emission($node->getType()) ?? [];
         if (isset($config['template']) && is_string($config['template'])) {
             return $this->applyTemplate($config['template'], $node, trim($this->renderChildren($node))) . "\n\n";
@@ -631,6 +659,10 @@ final class ChatRenderer implements RendererInterface
         $url = $this->stripControls((string)$node->getDestination());
         $title = $node->getTitle();
 
+        if ($this->rangeMode && $this->flavor->styleFor(NodeType::LINK) !== null && $url !== '') {
+            return $this->markStyled(NodeType::LINK, $content, ['url' => $url]);
+        }
+
         return match ($this->flavor->linkStyle()) {
             LinkStyle::Markdown => '[' . $this->escapeMarkdownLabel($content) . '](' . $this->escapeMarkdownDestination($url, $title) . ')',
             LinkStyle::SlackPipe => '<' . $this->escapeSlackUrl($url) . '|' . $content . '>',
@@ -680,6 +712,12 @@ final class ChatRenderer implements RendererInterface
      */
     private function wrapInCodeFence(string $content): string
     {
+        // A range-based target has no fence to wrap this in; the monospace
+        // comes from a style over the block instead.
+        if ($this->rangeMode && $this->flavor->styleFor(NodeType::CODE_BLOCK) !== null) {
+            return $this->markStyled(NodeType::CODE_BLOCK, $content) . "\n\n";
+        }
+
         $config = $this->flavor->emission(NodeType::CODE_BLOCK) ?? [];
         $open = is_string($config['open'] ?? null) ? $config['open'] : '```';
         $close = is_string($config['close'] ?? null) ? $config['close'] : '```';

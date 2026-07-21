@@ -79,6 +79,50 @@ final class ChatPreviewRendererTest extends TestCase
     }
 
     /**
+     * A payload-carrying range renders as the thing it represents: a real
+     * anchor, a quote block, a code block.
+     */
+    public function testPayloadRangesRenderAsTheirElements(): void
+    {
+        $source = "[docs](https://e.com/a)\n\n> quoted\n\n``` php\necho 1;\n```\n";
+        $document = CarveConverter::create()->parse($source);
+
+        $rendered = (new ChatPreviewRenderer((new FlavorRegistry())->get('telegram-entities')))->render($document);
+
+        self::assertStringContainsString('<a href="https://e.com/a"', $rendered);
+        self::assertStringContainsString('>docs</a>', $rendered);
+        self::assertStringContainsString('<blockquote>quoted</blockquote>', $rendered);
+        self::assertStringContainsString('<pre><code>echo 1;</code></pre>', $rendered);
+    }
+
+    /**
+     * Nested spans must stay balanced, so the outer one opens first and the
+     * inner one closes first.
+     */
+    public function testNestedRangesNestWellFormed(): void
+    {
+        $document = CarveConverter::create()->parse('*/nested/ tail*');
+
+        $rendered = (new ChatPreviewRenderer((new FlavorRegistry())->get('signal')))->render($document);
+
+        self::assertStringContainsString('<strong><em>nested</em> tail</strong>', $rendered);
+    }
+
+    /**
+     * A URL we refuse to link must not become an anchor even when it arrives
+     * through a range payload.
+     */
+    public function testUnsafeUrlInARangePayloadIsNotLinked(): void
+    {
+        $document = CarveConverter::create()->parse('[click](javascript:alert(1))');
+
+        $rendered = (new ChatPreviewRenderer((new FlavorRegistry())->get('telegram-entities')))->render($document);
+
+        self::assertStringNotContainsString('<a ', $rendered);
+        self::assertStringNotContainsString('javascript:', $rendered);
+    }
+
+    /**
      * A target with no link syntax shows the inlined URL, which chat clients
      * autolink; one with link syntax shows only the label.
      */

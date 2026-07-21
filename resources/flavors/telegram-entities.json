@@ -39,17 +39,15 @@
     },
     "code_block": {
       "support": "native",
-      "open": "",
-      "close": ""
+      "style": "pre"
     },
     "block_quote": {
       "support": "native",
-      "prefix": "> "
+      "style": "blockquote"
     },
     "link": {
-      "support": "none",
-      "fallback": "inline",
-      "template": "{content} ({url})"
+      "support": "native",
+      "style": "text_link"
     },
     "image": {
       "support": "none",

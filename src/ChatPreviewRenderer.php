@@ -101,23 +101,27 @@ final class ChatPreviewRenderer implements RendererInterface
     {
         $text = $result->text;
 
-        $boundaries = [];
+        $opens = [];
+        $closes = [];
         foreach ($result->ranges as $range) {
-            $start = $this->byteOffset($text, $range->start);
-            $end = $this->byteOffset($text, $range->start + $range->length);
-            $tag = self::MARK_TAGS[$this->nodeTypeForStyle($range->style)] ?? null;
-            if ($tag === null) {
+            $tags = $this->tagsForRange($range);
+            if ($tags === null) {
                 continue;
             }
-            $boundaries[$start][] = ['open', $tag];
-            $boundaries[$end][] = ['close', $tag];
+            $opens[$this->byteOffset($text, $range->start)][] = $tags[0];
+            $closes[$this->byteOffset($text, $range->start + $range->length)][] = $tags[1];
         }
 
         $out = '';
         $length = strlen($text);
         for ($i = 0; $i <= $length; $i++) {
-            foreach ($boundaries[$i] ?? [] as [$kind, $tag]) {
-                $out .= $kind === 'open' ? '<' . $tag . '>' : '</' . $tag . '>';
+            // Close what ends here before opening what starts here, innermost
+            // span first, so the tags stay balanced when spans nest.
+            foreach (array_reverse($closes[$i] ?? []) as $tag) {
+                $out .= $tag;
+            }
+            foreach ($opens[$i] ?? [] as $tag) {
+                $out .= $tag;
             }
             if ($i < $length) {
                 $out .= $this->escape($text[$i]);
@@ -128,18 +132,61 @@ final class ChatPreviewRenderer implements RendererInterface
     }
 
     /**
+     * The open and close tags a styled span renders as, or null when the style
+     * maps to nothing showable.
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    private function tagsForRange(StyleRange $range): ?array
+    {
+        $nodeType = $this->nodeTypeForStyle($range->style);
+
+        if (isset(self::MARK_TAGS[$nodeType])) {
+            $tag = self::MARK_TAGS[$nodeType];
+
+            return ['<' . $tag . '>', '</' . $tag . '>'];
+        }
+
+        return match ($nodeType) {
+            NodeType::CODE => ['<code>', '</code>'],
+            NodeType::CODE_BLOCK => ['<pre><code>', '</code></pre>'],
+            NodeType::BLOCKQUOTE => ['<blockquote>', '</blockquote>'],
+            NodeType::LINK => $this->linkOpenTag($range),
+            default => null,
+        };
+    }
+
+    /**
+     * @return array{0: string, 1: string}|null
+     */
+    private function linkOpenTag(StyleRange $range): ?array
+    {
+        $url = $this->sanitizeUrl($range->data['url'] ?? '');
+        if ($url === '') {
+            return null;
+        }
+
+        return ['<a href="' . $this->escape($url) . '" rel="nofollow noopener" target="_blank">', '</a>'];
+    }
+
+    /**
      * Maps a flavor's style name back to the node it came from, so the preview
      * can pick a tag for it.
      */
     private function nodeTypeForStyle(string $style): string
     {
-        foreach (array_keys(self::MARK_TAGS) as $nodeType) {
+        $candidates = array_merge(
+            array_keys(self::MARK_TAGS),
+            [NodeType::CODE, NodeType::CODE_BLOCK, NodeType::BLOCKQUOTE, NodeType::LINK],
+        );
+
+        foreach ($candidates as $nodeType) {
             if ($this->flavor->styleFor($nodeType) === $style) {
                 return $nodeType;
             }
         }
 
-        return $this->flavor->styleFor(NodeType::CODE) === $style ? NodeType::CODE : '';
+        return '';
     }
 
     /**

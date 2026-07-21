@@ -134,6 +134,42 @@ final class StyleRangeTest extends TestCase
         self::assertSame(0, preg_match('/[\x01-\x04]/', $result->text));
     }
 
+    /**
+     * Some styles need more than a name. Once the delimiters are gone the body
+     * has no room for a URL or a language, so the range carries them.
+     */
+    public function testRangesCarryTheirPayload(): void
+    {
+        $source = "[docs](https://e.com/a)\n\n> quoted\n\n``` php\necho 1;\n```\n";
+        $document = CarveConverter::create()->parse($source);
+
+        $result = (new ChatRenderer((new FlavorRegistry())->get('telegram-entities')))->renderResult($document);
+
+        self::assertSame("docs\n\nquoted\n\necho 1;\n", $result->text);
+        self::assertSame(
+            [
+                ['start' => 0, 'length' => 4, 'style' => 'text_link', 'url' => 'https://e.com/a'],
+                ['start' => 6, 'length' => 6, 'style' => 'blockquote'],
+                ['start' => 14, 'length' => 7, 'style' => 'pre', 'language' => 'php'],
+            ],
+            $result->rangesToArray(),
+        );
+    }
+
+    /**
+     * A payload-carrying target must not also inline the URL - that would
+     * duplicate it, once in the body and once in the entity.
+     */
+    public function testPayloadFlavorDoesNotAlsoInlineTheUrl(): void
+    {
+        $document = CarveConverter::create()->parse('See [docs](https://e.com).');
+
+        $result = (new ChatRenderer((new FlavorRegistry())->get('telegram-entities')))->renderResult($document);
+
+        self::assertSame("See docs.\n", $result->text);
+        self::assertStringNotContainsString('https://e.com', $result->text);
+    }
+
     public function testUnknownOutputModeIsRejected(): void
     {
         $data = json_decode((string)file_get_contents(dirname(__DIR__, 2) . '/resources/flavors/signal.json'), true);
