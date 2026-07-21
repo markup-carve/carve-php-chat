@@ -115,7 +115,7 @@
     },
     "underline": {
       "support": "none",
-      "fallback": "unwrap"
+      "fallback": "carve"
     },
     "strike": {
       "support": "native",
@@ -173,23 +173,23 @@
     },
     "superscript": {
       "support": "none",
-      "fallback": "unwrap"
+      "fallback": "carve"
     },
     "subscript": {
       "support": "none",
-      "fallback": "unwrap"
+      "fallback": "carve"
     },
     "highlight": {
       "support": "none",
-      "fallback": "unwrap"
+      "fallback": "carve"
     },
     "insert": {
       "support": "none",
-      "fallback": "unwrap"
+      "fallback": "carve"
     },
     "delete": {
       "support": "none",
-      "fallback": "unwrap"
+      "fallback": "carve"
     },
     "symbol": {
       "support": "native"

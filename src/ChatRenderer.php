@@ -247,16 +247,57 @@ final class ChatRenderer implements RendererInterface
 
     private function renderFallback(Node $node): string
     {
-        $fallback = $this->flavor->fallbackEnum($node->getType());
-        $this->recordLoss($node, $fallback, sprintf('Node "%s" is not native in %s.', $node->getType(), $this->flavor->id()));
+        $type = $node->getType();
+        $fallback = $this->flavor->fallbackEnum($type);
+        $this->recordLoss($node, $fallback, sprintf('Node "%s" is not native in %s.', $type, $this->flavor->id()));
 
-        return match ($fallback) {
+        $rendered = match ($fallback) {
             Fallback::Unwrap => $this->unwrapFallback($node),
             Fallback::Inline => $this->renderInlineBlockAwareFallback($node),
             Fallback::CodeBlock => $node instanceof Table ? $this->renderTableCodeBlock($node) : $this->renderCodeBlockFallback($node),
             Fallback::Appendix => $this->appendixFallback($node),
+            Fallback::Carve => $this->carveFallback($node),
             Fallback::Drop => '',
         };
+
+        // A node the target cannot represent natively may still declare a
+        // style, on a range-based target. A heading has no syntax in Signal but
+        // can still be bold, which beats degrading it to unremarkable text.
+        if ($this->rangeMode && $rendered !== '') {
+            return $this->markStyled($type, rtrim($rendered, "\n")) . substr($rendered, strlen(rtrim($rendered, "\n")));
+        }
+
+        return $rendered;
+    }
+
+    /**
+     * Carve's own delimiters, as produced by the core serializer. Used by the
+     * `carve` fallback so an inexpressible mark stays visible as markup rather
+     * than flattening into ordinary text.
+     *
+     * @var array<string, array{0: string, 1: string}>
+     */
+    private const CARVE_DELIMITERS = [
+        NodeType::EMPHASIS => ['/', '/'],
+        NodeType::STRONG => ['*', '*'],
+        NodeType::UNDERLINE => ['_', '_'],
+        NodeType::STRIKE => ['~', '~'],
+        NodeType::SUPERSCRIPT => ['{^', '^}'],
+        NodeType::SUBSCRIPT => ['{,', ',}'],
+        NodeType::HIGHLIGHT => ['{=', '=}'],
+        NodeType::INSERT => ['{+', '+}'],
+        NodeType::DELETE => ['{-', '-}'],
+    ];
+
+    private function carveFallback(Node $node): string
+    {
+        $inner = $this->renderChildren($node);
+        $delimiters = self::CARVE_DELIMITERS[$node->getType()] ?? null;
+        if ($delimiters === null || $inner === '') {
+            return $inner;
+        }
+
+        return $delimiters[0] . $inner . $delimiters[1];
     }
 
     private function renderDelimited(Node $node): string

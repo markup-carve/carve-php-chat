@@ -55,6 +55,12 @@
       "support": "none",
       "fallback": "inline",
       "template": "{alt} ({url})"
+    },
+    "heading": {
+      "support": "none",
+      "fallback": "inline",
+      "template": "{content}",
+      "style": "bold"
     }
   }
 }

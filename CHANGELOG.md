@@ -11,4 +11,5 @@ All notable changes to this project are documented in this file.
 - `ChatPreviewRenderer`, rendering what a client shows on screen rather than the markup sent to it.
 - Range-based output: `output: markup | ranges` and `offsets: utf16 | utf8 | codepoints` in the flavor schema, with `ChatResult::$ranges` carrying `StyleRange` spans.
 - Data-driven flavor definitions in `resources/flavors/*.json`, keyed by Carve `NodeType`.
+- `carve` fallback, keeping Carve's own delimiters where a target can express nothing.
 - Custom and derived flavors via `extends` and `FlavorRegistry::fromJsonFile()`.

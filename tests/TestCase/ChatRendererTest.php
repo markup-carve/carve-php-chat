@@ -146,8 +146,9 @@ final class ChatRendererTest extends TestCase
             ['heading'],
             array_map(static fn ($loss): string => $loss->nodeType, $result->losses),
         );
+        // The heading has no syntax in Signal, but bold still carries it.
         self::assertSame(
-            ['ITALIC', 'BOLD', 'STRIKETHROUGH', 'MONOSPACE'],
+            ['BOLD', 'ITALIC', 'BOLD', 'STRIKETHROUGH', 'MONOSPACE'],
             array_map(static fn ($range): string => $range->style, $result->ranges),
         );
     }

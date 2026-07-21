@@ -39,10 +39,43 @@ final class ChatPreviewRendererTest extends TestCase
     {
         $document = CarveConverter::create()->parse('Shipped *bold*.');
 
-        self::assertSame(
-            '<p>Shipped <strong>bold</strong>.</p>',
-            (new ChatPreviewRenderer((new FlavorRegistry())->get('signal')))->render($document),
-        );
+        $rendered = (new ChatPreviewRenderer((new FlavorRegistry())->get('signal')))->render($document);
+
+        self::assertStringContainsString('Shipped <strong>bold</strong>.', $rendered);
+    }
+
+    /**
+     * A range-based preview is built from what was actually sent, so it cannot
+     * invent structure the platform has no syntax for. Signal renders no quote
+     * block and no bullet list - those are literally these characters.
+     */
+    public function testRangeBasedPreviewInventsNoBlockStructure(): void
+    {
+        $document = CarveConverter::create()->parse("> quoted\n\n- one\n- two\n");
+
+        $rendered = (new ChatPreviewRenderer((new FlavorRegistry())->get('signal')))->render($document);
+
+        self::assertStringNotContainsString('<blockquote', $rendered);
+        self::assertStringNotContainsString('<ul', $rendered);
+        self::assertStringContainsString('&gt; quoted', $rendered);
+        self::assertStringContainsString('- one', $rendered);
+    }
+
+    /**
+     * Slack has no list syntax, so a bullet list would be a feature the
+     * platform does not have.
+     */
+    public function testMarkupFlavorWithoutListSyntaxShowsLiteralPrefixes(): void
+    {
+        $document = CarveConverter::create()->parse("- one\n- two\n");
+        $registry = new FlavorRegistry();
+
+        $slack = (new ChatPreviewRenderer($registry->get('slack')))->render($document);
+        $discord = (new ChatPreviewRenderer($registry->get('discord')))->render($document);
+
+        self::assertStringNotContainsString('<ul', $slack);
+        self::assertStringContainsString('- one', $slack);
+        self::assertStringContainsString('<ul', $discord);
     }
 
     /**

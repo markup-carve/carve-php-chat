@@ -31,14 +31,18 @@ use MarkupCarve\Carve\Renderer\TableLayout;
  *
  * This needs no extra per-platform data. Which marks a target supports is
  * already in the flavor table, and the mapping from a supported mark to its
- * visual form is universal - strong is bold everywhere it exists at all. So the
- * preview is the same walk as {@see ChatRenderer} with the same fallbacks,
- * emitting HTML instead of platform delimiters: a target without underline
- * shows that word plain, and one without link syntax shows the inlined URL.
+ * visual form is universal - strong is bold everywhere it exists at all.
  *
- * This is deliberately independent of {@see OutputMode}. A range-based target
- * still displays the styling on screen - it just sends it as offsets - so its
- * preview is styled like any other.
+ * There are two paths, matching the two {@see OutputMode}s:
+ *
+ * - `ranges` - built from what was actually sent, applying the style offsets
+ *   over the plain-text body. Nothing else is interpreted, so a construct the
+ *   platform has no syntax for shows as the literal characters in the message.
+ *   Re-walking the AST here would invent a quote block or a bullet list the
+ *   platform does not have.
+ * - `markup` - walks the AST, honoring the flavor's support table for blocks
+ *   too. Slack has no list syntax, so its `- ` is a hyphen on screen, not a
+ *   bullet.
  *
  * Security: every text value is escaped, and raw nodes are never passed
  * through as markup. The output is meant to be embedded in a page, so nothing
@@ -77,7 +81,81 @@ final class ChatPreviewRenderer implements RendererInterface
     {
         $this->renderDepth = 0;
 
+        // A range-based target sends plain text with style offsets, so its
+        // preview is built from what was actually sent rather than from the
+        // AST. Anything the platform has no syntax for - a quote, a list, a
+        // heading - is then literally those characters on screen, which is
+        // what the reader sees. Re-walking the AST here would invent structure
+        // the platform does not have.
+        if ($this->flavor->output() === OutputMode::Ranges) {
+            return $this->renderFromRanges((new ChatRenderer($this->flavor))->renderResult($document));
+        }
+
         return trim($this->renderChildren($document));
+    }
+
+    /**
+     * Applies style offsets over the plain-text body.
+     */
+    private function renderFromRanges(ChatResult $result): string
+    {
+        $text = $result->text;
+
+        $boundaries = [];
+        foreach ($result->ranges as $range) {
+            $start = $this->byteOffset($text, $range->start);
+            $end = $this->byteOffset($text, $range->start + $range->length);
+            $tag = self::MARK_TAGS[$this->nodeTypeForStyle($range->style)] ?? null;
+            if ($tag === null) {
+                continue;
+            }
+            $boundaries[$start][] = ['open', $tag];
+            $boundaries[$end][] = ['close', $tag];
+        }
+
+        $out = '';
+        $length = strlen($text);
+        for ($i = 0; $i <= $length; $i++) {
+            foreach ($boundaries[$i] ?? [] as [$kind, $tag]) {
+                $out .= $kind === 'open' ? '<' . $tag . '>' : '</' . $tag . '>';
+            }
+            if ($i < $length) {
+                $out .= $this->escape($text[$i]);
+            }
+        }
+
+        return '<div class="chat-plain">' . $out . '</div>';
+    }
+
+    /**
+     * Maps a flavor's style name back to the node it came from, so the preview
+     * can pick a tag for it.
+     */
+    private function nodeTypeForStyle(string $style): string
+    {
+        foreach (array_keys(self::MARK_TAGS) as $nodeType) {
+            if ($this->flavor->styleFor($nodeType) === $style) {
+                return $nodeType;
+            }
+        }
+
+        return $this->flavor->styleFor(NodeType::CODE) === $style ? NodeType::CODE : '';
+    }
+
+    /**
+     * Converts an offset in the flavor's unit to a byte offset into the body.
+     */
+    private function byteOffset(string $text, int $offset): int
+    {
+        return match ($this->flavor->offsetUnit()) {
+            OffsetUnit::Utf8 => $offset,
+            OffsetUnit::Codepoints => strlen((string)mb_substr($text, 0, $offset, 'UTF-8')),
+            OffsetUnit::Utf16 => strlen((string)mb_convert_encoding(
+                substr((string)mb_convert_encoding($text, 'UTF-16LE', 'UTF-8'), 0, $offset * 2),
+                'UTF-8',
+                'UTF-16LE',
+            )),
+        };
     }
 
     private function renderChildren(Node $node): string
@@ -122,9 +200,9 @@ final class ChatPreviewRenderer implements RendererInterface
             $node instanceof Text, $node instanceof EscapedText => $this->escape($node->getContent()),
             $node instanceof Paragraph => '<p>' . $this->renderChildren($node) . '</p>',
             $node instanceof Heading => $this->renderHeading($node),
-            $node instanceof BlockQuote => '<blockquote>' . $this->renderChildren($node) . '</blockquote>',
+            $node instanceof BlockQuote => $this->renderBlockQuote($node),
             $node instanceof ListBlock => $this->renderList($node),
-            $node instanceof ListItem => '<li>' . $this->renderChildren($node) . '</li>',
+            $node instanceof ListItem => '<li>' . $this->itemContent($node) . '</li>',
             $node instanceof CodeBlock => '<pre><code>' . $this->escape($node->getContent()) . '</code></pre>',
             $node instanceof Code => $this->renderCode($node),
             $node instanceof Table => $this->renderTable($node),
@@ -160,11 +238,61 @@ final class ChatPreviewRenderer implements RendererInterface
         return $this->flavor->supports(NodeType::CODE) ? '<code>' . $inner . '</code>' : $inner;
     }
 
+    /**
+     * Slack has no list syntax at all, so its `- ` is literally a hyphen on
+     * screen. Showing a real bullet list there would claim a feature the
+     * platform does not have.
+     */
     private function renderList(ListBlock $node): string
     {
-        $tag = $node->getListType() === ListBlock::TYPE_ORDERED ? 'ol' : 'ul';
+        $ordered = $node->getListType() === ListBlock::TYPE_ORDERED;
+
+        if (!$this->flavor->supports(NodeType::LIST_BLOCK)) {
+            $lines = '';
+            $number = 1;
+            foreach ($node->getChildren() as $item) {
+                $prefix = $ordered ? $number++ . '. ' : '- ';
+                $lines .= '<div>' . $this->escape($prefix) . $this->itemContent($item) . '</div>';
+            }
+
+            return $lines;
+        }
+
+        $tag = $ordered ? 'ol' : 'ul';
 
         return '<' . $tag . '>' . $this->renderChildren($node) . '</' . $tag . '>';
+    }
+
+    /**
+     * List item text without its paragraph wrapper, so a literal `- one` stays
+     * one contiguous run rather than being split by a block element.
+     */
+    private function itemContent(Node $node): string
+    {
+        $out = '';
+        foreach ($node->getChildren() as $child) {
+            $out .= $child instanceof Paragraph ? $this->renderChildren($child) : $this->renderNode($child);
+        }
+
+        return $out;
+    }
+
+    /**
+     * Same reasoning as lists: a target without quote rendering shows the
+     * `> ` prefix as ordinary characters.
+     */
+    private function renderBlockQuote(BlockQuote $node): string
+    {
+        if ($this->flavor->supports(NodeType::BLOCKQUOTE)) {
+            return '<blockquote>' . $this->renderChildren($node) . '</blockquote>';
+        }
+
+        $out = '';
+        foreach ($node->getChildren() as $child) {
+            $out .= '<div>&gt; ' . $this->renderChildren($child) . '</div>';
+        }
+
+        return $out;
     }
 
     /**

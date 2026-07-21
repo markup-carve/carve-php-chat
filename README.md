@@ -93,6 +93,14 @@ A range-based flavor names a `style` per node instead of delimiters:
 "strong": { "support": "native", "style": "BOLD" }
 ```
 
+A node the target cannot represent natively may still declare a `style`, so it
+degrades *and* carries the styling. Signal has no heading syntax, but a heading
+should not flatten to unremarkable text:
+
+```json
+"heading": { "support": "none", "fallback": "inline", "template": "{content}", "style": "BOLD" }
+```
+
 `ChatResult` then carries the spans:
 
 ```php
@@ -175,7 +183,7 @@ Keyed by `MarkupCarve\Carve\NodeType` constants.
 | field | values |
 |-------|--------|
 | `support` | `native`, `none` |
-| `fallback` | `unwrap`, `inline`, `codeblock`, `appendix`, `drop` |
+| `fallback` | `unwrap`, `carve`, `inline`, `codeblock`, `appendix`, `drop` |
 | `link.style` | `none`, `markdown`, `slackPipe`, `html` |
 | `escape.mechanism` | `backslash`, `entities`, `none` |
 | `output` | `markup` (default), `ranges` |
@@ -187,6 +195,8 @@ Template placeholders: `{content}`, `{url}`, `{alt}`, `{title}`, `{hashes}`.
 Fallback meanings:
 
 - `unwrap` - emit the children, drop the markup
+- `carve` - keep Carve's own delimiters, so an inexpressible mark stays visible
+  (`{=highlighted=}`, `{^sup^}`) instead of flattening into ordinary text
 - `inline` - emit via `template`, e.g. `{alt} ({url})`
 - `codeblock` - flatten to a column-aligned monospace block (tables)
 - `appendix` - collect and emit at the end, numbered (footnotes)
