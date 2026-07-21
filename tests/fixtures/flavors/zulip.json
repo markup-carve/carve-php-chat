@@ -1,0 +1,17 @@
+{
+  "id": "zulip",
+  "label": "Zulip",
+  "extends": null,
+  "verified": "2026-07-21",
+  "limits": { "message": 10000 },
+  "link": { "style": "markdown" },
+  "escape": { "mechanism": "backslash", "chars": "*_`" },
+  "nodes": {
+    "paragraph": { "support": "native" },
+    "text": { "support": "native" },
+    "strong": { "support": "native", "open": "**", "close": "**" },
+    "emphasis": { "support": "native", "open": "*", "close": "*" },
+    "code": { "support": "native", "open": "`", "close": "`" },
+    "link": { "support": "native" }
+  }
+}

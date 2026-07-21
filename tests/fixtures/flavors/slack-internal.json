@@ -1,0 +1,8 @@
+{
+  "id": "slack-internal",
+  "label": "Slack (internal)",
+  "extends": "slack",
+  "nodes": {
+    "heading": { "support": "none", "fallback": "inline", "template": "*{content}*" }
+  }
+}

@@ -1,0 +1,57 @@
+{
+    "name": "markup-carve/carve-php-chat",
+    "description": "Render Carve documents to chat-platform markup (WhatsApp, Slack, Telegram, Discord) via data-driven flavor definitions.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["carve", "markup", "chat", "slack", "telegram", "discord", "whatsapp", "mrkdwn", "export"],
+    "authors": [
+        {
+            "name": "Mark Scherer",
+            "homepage": "https://www.dereuromark.de"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/markup-carve/carve-php-chat/issues",
+        "source": "https://github.com/markup-carve/carve-php-chat"
+    },
+    "require": {
+        "php": ">=8.2",
+        "ext-json": "*",
+        "markup-carve/carve-php": "^0.1.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.5 || ^12.0 || ^13.0",
+        "phpstan/phpstan": "^2.0",
+        "squizlabs/php_codesniffer": "^4.0",
+        "php-collective/code-sniffer": "^0.6",
+        "dealerdirect/phpcodesniffer-composer-installer": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "MarkupCarve\\Chat\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "MarkupCarve\\Chat\\Test\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "stan": "phpstan analyse",
+        "cs-check": "phpcs",
+        "cs-fix": "phpcbf"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.1.x-dev"
+        }
+    }
+}
