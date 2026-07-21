@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace MarkupCarve\Chat\Test\TestCase;
 
 use MarkupCarve\Carve\CarveConverter;
+use MarkupCarve\Carve\Extension\AdmonitionExtension;
+use MarkupCarve\Carve\Extension\CitationsExtension;
+use MarkupCarve\Carve\Extension\DetailsExtension;
 use MarkupCarve\Carve\Extension\SpoilerExtension;
 use MarkupCarve\Carve\Node\Block\BlockQuote;
 use MarkupCarve\Carve\Node\Block\Footnote;
@@ -25,6 +28,7 @@ use MarkupCarve\Carve\Node\Inline\Strong;
 use MarkupCarve\Carve\Node\Inline\Text;
 use MarkupCarve\Chat\ChatRenderer;
 use MarkupCarve\Chat\FlavorRegistry;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class ChatRendererTest extends TestCase
@@ -227,6 +231,48 @@ final class ChatRendererTest extends TestCase
             "A hidden here.\n",
             (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->render($document),
         );
+    }
+
+    /**
+     * A citation keeps its data in node properties, so unwrapping it by
+     * rendering children dropped the citation from the message entirely.
+     */
+    public function testCitationSurvivesInsteadOfVanishing(): void
+    {
+        $converter = CarveConverter::create();
+        $converter->addExtension(new CitationsExtension());
+        $document = $converter->parse('See [@smith2020, p. 5].');
+
+        $rendered = (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->render($document);
+
+        self::assertSame("See [@smith2020, p. 5].\n", $rendered);
+    }
+
+    /**
+     * Chat has no boxes to draw, so the label is the only thing separating a
+     * warning from an ordinary paragraph.
+     *
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function labelledDivProvider(): array
+    {
+        return [
+            'admonition kind' => ["::: warning\nBe careful.\n:::\n", "Warning:\nBe careful.\n"],
+            'details title' => ["::: details \"More info\"\nHidden body.\n:::\n", "More info:\nHidden body.\n"],
+            'unlabelled div stays bare' => ["::: myclass\nJust prose.\n:::\n", "Just prose.\n"],
+        ];
+    }
+
+    #[DataProvider('labelledDivProvider')]
+    public function testLabelledDivKeepsItsLabel(string $source, string $expected): void
+    {
+        $converter = CarveConverter::create();
+        $converter->addExtension(new AdmonitionExtension());
+        $converter->addExtension(new DetailsExtension());
+
+        $rendered = (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->render($converter->parse($source));
+
+        self::assertSame($expected, $rendered);
     }
 
     private function richDocument(): Document

@@ -185,6 +185,11 @@ extension, and several targets have a real spoiler of their own:
 "inline_extension:spoiler": { "support": "native", "open": "||", "close": "||" }
 ```
 
+A div that names itself keeps that name as a leading label, because chat has no
+box to draw around it: `::: warning` becomes a `Warning:` line, and a titled
+`::: details "More info"` becomes `More info:`. Without it a warning arrives as
+unlabelled prose.
+
 Note that `highlight` (`{=mark=}`) is **not** a spoiler. Highlight emphasizes,
 a spoiler conceals; mapping one onto the other inverts what the author meant.
 No target has a highlight, so it keeps its Carve markup.

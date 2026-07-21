@@ -27,6 +27,7 @@ use MarkupCarve\Carve\Node\Block\TableRow;
 use MarkupCarve\Carve\Node\Block\ThematicBreak;
 use MarkupCarve\Carve\Node\Document;
 use MarkupCarve\Carve\Node\Inline\CaptionNumber;
+use MarkupCarve\Carve\Node\Inline\CitationGroup;
 use MarkupCarve\Carve\Node\Inline\Code;
 use MarkupCarve\Carve\Node\Inline\Delete;
 use MarkupCarve\Carve\Node\Inline\Emphasis;
@@ -219,7 +220,7 @@ final class ChatRenderer implements RendererInterface
             $node instanceof DefinitionTerm => $this->renderChildren($node) . "\n",
             $node instanceof DefinitionDescription => '  ' . trim($this->renderChildren($node)) . "\n",
             $node instanceof ThematicBreak => "---\n\n",
-            $node instanceof Div => $this->renderChildren($node),
+            $node instanceof Div => $this->renderDiv($node),
             $node instanceof Table => $this->renderTableCodeBlock($node),
             $node instanceof TableRow => $this->renderChildren($node),
             $node instanceof TableCell => $this->renderChildren($node),
@@ -281,6 +282,44 @@ final class ChatRenderer implements RendererInterface
         }
 
         return $rendered;
+    }
+
+    /**
+     * Admonition kinds, from the extension's own default set. A `::: warning`
+     * that renders as bare prose has lost the one thing it was marking.
+     *
+     * @var array<string>
+     */
+    private const LABELLED_DIV_CLASSES = ['note', 'tip', 'warning', 'danger', 'info', 'success', 'caution', 'important'];
+
+    /**
+     * A div whose class names it, or which carries a title, keeps that label as
+     * a leading line. Chat has no boxes to draw, so the label is the only thing
+     * distinguishing a warning from a paragraph.
+     */
+    private function renderDiv(Div $node): string
+    {
+        $body = $this->renderChildren($node);
+        $label = $this->divLabel($node);
+
+        return $label === '' ? $body : $label . "\n" . $body;
+    }
+
+    private function divLabel(Div $node): string
+    {
+        $title = $this->stripControls($node->getAttribute('title') ?? '');
+        if ($title !== '') {
+            return $this->escapeText($title) . ':';
+        }
+
+        $class = $node->getAttribute('class') ?? '';
+        foreach (explode(' ', $class) as $candidate) {
+            if (in_array($candidate, self::LABELLED_DIV_CLASSES, true)) {
+                return $this->escapeText(ucfirst($candidate)) . ':';
+            }
+        }
+
+        return '';
     }
 
     /**
@@ -548,16 +587,24 @@ final class ChatRenderer implements RendererInterface
             return $this->renderList($node, true);
         }
 
+        // A div is unsupported everywhere, so its label has to survive the
+        // fallback path rather than the native one.
+        if ($node instanceof Div) {
+            return $this->renderDiv($node);
+        }
+
         $rendered = $this->renderChildren($node);
         if ($rendered !== '') {
             return $rendered;
         }
 
-        $inline = $node instanceof Code || $node instanceof RawInline || $node instanceof RawText;
+        $inline = $node instanceof Code || $node instanceof RawInline
+            || $node instanceof RawText || $node instanceof CitationGroup;
 
         $content = match (true) {
             $node instanceof CodeBlock, $node instanceof RawBlock, $node instanceof Math,
             $node instanceof Code, $node instanceof RawInline, $node instanceof RawText => $node->getContent(),
+            $node instanceof CitationGroup => $node->getRaw(),
             default => '',
         };
 
