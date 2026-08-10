@@ -66,7 +66,7 @@ final class ChatRenderer implements RendererInterface
     /**
      * @var int
      */
-    private const MAX_RENDER_DEPTH = 512;
+    public const MAX_RENDER_DEPTH = 512;
 
     private int $renderDepth = 0;
 

@@ -29,6 +29,7 @@ use MarkupCarve\Carve\Node\Inline\Strike;
 use MarkupCarve\Carve\Node\Inline\Strong;
 use MarkupCarve\Carve\Node\Inline\Substitution;
 use MarkupCarve\Carve\Node\Inline\Text;
+use MarkupCarve\Chat\ChatPreviewRenderer;
 use MarkupCarve\Chat\ChatRenderer;
 use MarkupCarve\Chat\FlavorRegistry;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -36,6 +37,12 @@ use PHPUnit\Framework\TestCase;
 
 final class ChatRendererTest extends TestCase
 {
+    public function testRendererDepthContractIsPublic(): void
+    {
+        self::assertSame(512, ChatRenderer::MAX_RENDER_DEPTH);
+        self::assertSame(512, ChatPreviewRenderer::MAX_RENDER_DEPTH);
+    }
+
     public function testPerFlavorRendering(): void
     {
         $document = $this->richDocument();

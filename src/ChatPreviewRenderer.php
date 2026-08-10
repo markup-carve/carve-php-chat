@@ -54,7 +54,7 @@ final class ChatPreviewRenderer implements RendererInterface
     /**
      * @var int
      */
-    private const MAX_RENDER_DEPTH = 512;
+    public const MAX_RENDER_DEPTH = 512;
 
     /**
      * Supported inline marks and the tag that shows them. Not per-platform:
