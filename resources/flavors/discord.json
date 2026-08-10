@@ -218,7 +218,15 @@
     "raw_text": {
       "support": "native"
     },
-    "citation-group": {
+    "admonition": { "support": "none", "fallback": "unwrap" },
+    "frontmatter": { "support": "none", "fallback": "drop" },
+    "abbreviation_def": { "support": "none", "fallback": "drop" },
+    "link_reference_definition": { "support": "none", "fallback": "drop" },
+    "autolink": { "support": "none", "fallback": "unwrap" },
+    "critic_comment": { "support": "native" },
+    "smart_punctuation": { "support": "native" },
+    "literal_inline": { "support": "native" },
+    "citation_group": {
       "support": "none",
       "fallback": "unwrap"
     }

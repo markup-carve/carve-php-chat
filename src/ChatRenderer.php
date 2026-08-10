@@ -29,6 +29,7 @@ use MarkupCarve\Carve\Node\Document;
 use MarkupCarve\Carve\Node\Inline\CaptionNumber;
 use MarkupCarve\Carve\Node\Inline\CitationGroup;
 use MarkupCarve\Carve\Node\Inline\Code;
+use MarkupCarve\Carve\Node\Inline\CriticComment;
 use MarkupCarve\Carve\Node\Inline\Delete;
 use MarkupCarve\Carve\Node\Inline\Emphasis;
 use MarkupCarve\Carve\Node\Inline\EscapedText;
@@ -41,10 +42,12 @@ use MarkupCarve\Carve\Node\Inline\InlineExtension;
 use MarkupCarve\Carve\Node\Inline\InlineFootnote;
 use MarkupCarve\Carve\Node\Inline\Insert;
 use MarkupCarve\Carve\Node\Inline\Link;
+use MarkupCarve\Carve\Node\Inline\LiteralInline;
 use MarkupCarve\Carve\Node\Inline\Math;
 use MarkupCarve\Carve\Node\Inline\Mention;
 use MarkupCarve\Carve\Node\Inline\RawInline;
 use MarkupCarve\Carve\Node\Inline\RawText;
+use MarkupCarve\Carve\Node\Inline\SmartPunctuation;
 use MarkupCarve\Carve\Node\Inline\SoftBreak;
 use MarkupCarve\Carve\Node\Inline\Span;
 use MarkupCarve\Carve\Node\Inline\Strike;
@@ -253,8 +256,11 @@ final class ChatRenderer implements RendererInterface
             $node instanceof FootnoteRef => '[' . $this->footnoteSlot($node->getLabel()) . ']',
             $node instanceof HeadingRef => '</#' . $this->flavor->escaper()->escape($this->stripControls($node->getTargetId())) . '>',
             $node instanceof CaptionNumber => $node->getNumber() === null ? '#' : (string)$node->getNumber(),
+            $node instanceof CriticComment => $this->escapeText($this->stripControls($node->getContent())),
+            $node instanceof SmartPunctuation => $this->escapeText($this->stripControls($node->getContent())),
             $node instanceof RawInline => $this->flavor->escaper()->escape($this->stripControls($node->getContent())),
             $node instanceof RawText => $this->flavor->escaper()->escape($this->stripControls($node->getContent())),
+            $node instanceof LiteralInline => $this->escapeText($this->stripControls($node->getContent())),
             default => $this->renderChildren($node),
         };
     }
@@ -307,6 +313,11 @@ final class ChatRenderer implements RendererInterface
 
     private function divLabel(Div $node): string
     {
+        $header = $this->stripControls($node->getHeader() ?? '');
+        if ($header !== '') {
+            return $this->escapeText($header) . ':';
+        }
+
         // `title` names a details/spoiler block, `label` a tab panel. Either
         // way it is the block's name, and a tab without one is just prose
         // butted against the next tab.

@@ -40,7 +40,7 @@ final class FlavorCompletenessTest extends TestCase
 
     /**
      * The gate above reflects over NodeType, which is not the whole story: five
-     * node classes have no constant there. One of them, `citation-group`, had
+     * node classes have no constant there. One of them, `citation_group`, had
      * no entry in any flavor, so every citation was silently dropped and no
      * test noticed. This derives the list from the node classes themselves.
      */

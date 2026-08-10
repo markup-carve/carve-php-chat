@@ -25,7 +25,7 @@ final readonly class ChatFlavor
      * Node types that exist as classes in the core but have no `NodeType`
      * constant, so reflecting over that class alone does not find them.
      *
-     * This gap was not academic: `citation-group` had no entry anywhere, so
+     * This gap was not academic: `citation_group` had no entry anywhere, so
      * every citation was dropped from the message without any gate noticing.
      * {@see \MarkupCarve\Chat\Test\TestCase\FlavorCompletenessTest} asserts
      * this list still matches the core's node classes.
@@ -34,10 +34,8 @@ final readonly class ChatFlavor
      */
     public const EXTRA_NODE_TYPES = [
         'document',
-        'substitution',
-        'citation-group',
         'raw_text',
-        'caption_number',
+        'smart_punctuation',
     ];
 
     /**
