@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- **The unwrap fallback keeps block boundaries** (carve-php-chat#1). A
+  figure's image, its caption and the next block's text were concatenated
+  bare - "HamletLogo (...)The logoRoses are red" - so the words survived but
+  the boundaries did not. An unwrapped block node's children are joined with
+  blank lines now and the node ends one.
+- **A substitution renders as struck old text plus its replacement**
+  (carve-php-chat#1). `{~old~>new~}` was concatenated to "oldnew" with no
+  separator and no styling. It renders `~old~ new` through the flavor's own
+  strike path, so a target without native strike falls back the way an
+  authored `~old~` would.
+
 ### Added
 
 - Initial release: `ChatRenderer`, `ChatFlavor`, `FlavorRegistry`, `ChatResult`, `Loss`, `Escaper`.
