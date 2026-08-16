@@ -96,6 +96,19 @@ final readonly class ChatFlavor
             // targets one extension rather than every extension at once.
             $base = str_contains($nodeType, ':') ? strstr($nodeType, ':', true) : $nodeType;
             if (!in_array($base, self::knownNodeTypes(), true)) {
+                // FORWARD, not sideways: a snake_case name the installed core
+                // does not know is most plausibly a node type a NEWER core
+                // added - the bundled flavors have to load on the released
+                // core and on dev-main alike, and the completeness test
+                // already fails the moment the entry is genuinely missing on
+                // the newer one. Anything else (camelCase, a stray word) is
+                // still the typo this guard exists for.
+                if (preg_match('/^[a-z][a-z0-9_]*$/', (string)$base) === 1) {
+                    unset($nodes[$nodeType]);
+
+                    continue;
+                }
+
                 throw new InvalidFlavorException(sprintf('Unknown node type "%s" in flavor "%s".', $nodeType, $id));
             }
 

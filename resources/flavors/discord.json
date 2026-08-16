@@ -94,6 +94,10 @@
       "support": "none",
       "fallback": "unwrap"
     },
+    "figure_group": {
+      "support": "none",
+      "fallback": "unwrap"
+    },
     "caption": {
       "support": "none",
       "fallback": "unwrap"
