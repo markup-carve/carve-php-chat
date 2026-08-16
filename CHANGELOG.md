@@ -6,6 +6,18 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- **The bundled flavors cover `figure_group`, and a flavor loads on a core
+  that predates one of its entries.** carve-php's composite figures added a
+  node type the flavors did not name, which failed the completeness test on
+  dev-main - while naming it failed validation on the released core, which
+  rejects unknown node types. Every flavor carries the entry now
+  (`unwrap`, like `figure`), and validation skips a snake_case node type the
+  installed core does not know: that is a newer core's type, not a typo -
+  the completeness test still fails the moment an entry is genuinely
+  missing, and a malformed name still throws.
+
+### Fixed
+
 - **The unwrap fallback keeps block boundaries** (carve-php-chat#1). A
   figure's image, its caption and the next block's text were concatenated
   bare - "HamletLogo (...)The logoRoses are red" - so the words survived but
