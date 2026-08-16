@@ -317,7 +317,9 @@ final class ChatRendererTest extends TestCase
 
         $rendered = (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->render($document);
 
-        self::assertStringContainsString('oldnew', $rendered);
+        // The struck old text and its replacement, separated - bare "oldnew"
+        // was the mangling carve-php-chat#1 reported.
+        self::assertStringContainsString('~old~ new', $rendered);
         self::assertStringContainsString('#', $rendered);
     }
 

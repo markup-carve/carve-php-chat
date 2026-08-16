@@ -40,6 +40,7 @@ use MarkupCarve\Carve\Node\Inline\Highlight;
 use MarkupCarve\Carve\Node\Inline\Image;
 use MarkupCarve\Carve\Node\Inline\InlineExtension;
 use MarkupCarve\Carve\Node\Inline\InlineFootnote;
+use MarkupCarve\Carve\Node\Inline\InlineNode;
 use MarkupCarve\Carve\Node\Inline\Insert;
 use MarkupCarve\Carve\Node\Inline\Link;
 use MarkupCarve\Carve\Node\Inline\LiteralInline;
@@ -250,7 +251,7 @@ final class ChatRenderer implements RendererInterface
             $node instanceof Superscript,
             $node instanceof Subscript,
             $node instanceof Span => $this->renderDelimited($node),
-            $node instanceof Substitution => $this->flavor->escaper()->escape($this->stripControls($node->getOldText() . $node->getNewText())),
+            $node instanceof Substitution => $this->renderSubstitution($node),
             $node instanceof Symbol => ':' . $this->flavor->escaper()->escape($this->stripControls($node->getName())) . ':',
             $node instanceof InlineFootnote => $this->renderDelimited($node),
             $node instanceof FootnoteRef => '[' . $this->footnoteSlot($node->getLabel()) . ']',
@@ -565,6 +566,36 @@ final class ChatRenderer implements RendererInterface
         return $open . $language . "\n" . $content . "\n" . $close . "\n\n";
     }
 
+    /**
+     * `{~old~>new~}` as struck old text plus the replacement.
+     *
+     * The two sides used to be concatenated bare ("oldnew"), with no separator
+     * and no styling - the one silent mangling in an otherwise
+     * honestly-reported renderer (carve-php-chat#1). Strike is the reading
+     * every flavor here has a spelling for, and the synthetic node takes the
+     * flavor's own path, so a target without native strike still falls back
+     * the way an authored `~old~` would.
+     */
+    private function renderSubstitution(Substitution $node): string
+    {
+        $old = $this->stripControls($node->getOldText());
+        $new = $this->stripControls($node->getNewText());
+
+        $struck = '';
+        if ($old !== '') {
+            $strike = new Strike();
+            $strike->appendChild(new Text($old));
+            $struck = $this->renderNode($strike);
+        }
+        $replacement = $new === '' ? '' : $this->escapeText($new);
+
+        if ($struck === '' || $replacement === '') {
+            return $struck . $replacement;
+        }
+
+        return $struck . ' ' . $replacement;
+    }
+
     private function renderCode(Code $node): string
     {
         return $this->renderCodeLike($node->getContent(), $node->getType());
@@ -607,6 +638,28 @@ final class ChatRenderer implements RendererInterface
         // fallback path rather than the native one.
         if ($node instanceof Div) {
             return $this->renderDiv($node);
+        }
+
+        // A BLOCK node's unwrapped children keep their block boundaries. Bare
+        // concatenation ran a figure's image, its caption and the next block's
+        // text into one line ("HamletLogo (...)The logoRoses") - the words
+        // survived but the boundaries did not, which loses them just as surely
+        // (carve-php-chat#1).
+        if (!$node instanceof InlineNode) {
+            $joined = '';
+            foreach ($node->getChildren() as $child) {
+                $chunk = $this->renderNode($child);
+                if ($chunk === '') {
+                    continue;
+                }
+                if ($joined !== '' && !str_ends_with($joined, "\n")) {
+                    $joined .= "\n\n";
+                }
+                $joined .= $chunk;
+            }
+            if ($joined !== '') {
+                return rtrim($joined, "\n") . "\n\n";
+            }
         }
 
         $rendered = $this->renderChildren($node);
