@@ -247,7 +247,3 @@ Telegram added expandable blockquote in Bot API 7.3.
 Flavors declare `limits.message`. Exceeding it records a loss; the text is
 returned whole and is **not** split. Splitting formatted text correctly (never
 inside a fence, never orphaning a `**`) is a separate problem.
-
-## License
-
-MIT
