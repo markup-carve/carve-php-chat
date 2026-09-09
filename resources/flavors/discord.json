@@ -233,6 +233,14 @@
     "citation_group": {
       "support": "none",
       "fallback": "unwrap"
+    },
+    "citation_definition": {
+      "support": "none",
+      "fallback": "unwrap"
+    },
+    "citation": {
+      "support": "none",
+      "fallback": "unwrap"
     }
   }
 }

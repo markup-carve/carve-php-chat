@@ -18,6 +18,11 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- **The bundled flavors cover `citation` and `citation_definition`.** A newer
+  carve-php core added these node types, which the flavors did not name, so the
+  completeness gate failed against the tracked dev-main core. Both are carried
+  now (support `none`, fallback `unwrap`, the same reading `citation_group`
+  has).
 - **The bundled flavors cover `figure_group`, and a flavor loads on a core
   that predates one of its entries.** carve-php's composite figures added a
   node type the flavors did not name, which failed the completeness test on
