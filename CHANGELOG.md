@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 0.1.1 - 2026-09-20
+
+### Changed
+
+- Require carve-php `^0.1.9`, up from `^0.1.2`, for the `SubstitutionHalf` node
+  the substitution fix below reads (#7)
+
+### Fixed
+
+- A substitution renders both halves as inline content rather than flattened
+  text. `{~/old/~>*new*~}` lost its emphasis and its strong on every flavor,
+  where the same inlines outside a substitution keep them (#7)
+
 ## 0.1.0 - 2026-09-09
 
 ### Added
