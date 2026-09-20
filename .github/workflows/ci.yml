@@ -1,5 +1,18 @@
 name: CI
 
+# Two lanes, because they answer different questions.
+#
+# The RELEASED lane installs what composer.json declares, so a green run says
+# the package works for someone who installs it from Packagist. Until 2026-09,
+# every lane overrode the requirement with carve-php's main branch, which meant
+# no run ever exercised the declared constraint.
+#
+# The MAIN lane keeps the early warning that override gave: it moves the engine
+# to its development branch so an upstream break shows up here before a release
+# carries it to users. It cannot fail the build, because upstream moving is not
+# a defect in this repository and a job that goes red for something nobody here
+# can fix is a job people learn to ignore.
+
 on:
   push:
     branches: [main, next]
@@ -7,8 +20,10 @@ on:
 
 jobs:
   tests:
+    name: Tests (PHP ${{ matrix.php-version }}, carve-php released)
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         php-version: ['8.2', '8.3', '8.4']
     steps:
@@ -17,9 +32,23 @@ jobs:
         with:
           php-version: ${{ matrix.php-version }}
           coverage: none
-      - run: composer require markup-carve/carve-php:"dev-main as 0.1.4" --prefer-dist --no-progress
+      - run: composer update --prefer-dist --no-progress
+      - run: composer show markup-carve/carve-php | grep '^versions'
       - run: vendor/bin/phpunit
       - run: vendor/bin/phpstan analyse
         if: matrix.php-version == '8.2'
       - run: vendor/bin/phpcs
         if: matrix.php-version == '8.2'
+
+  engine-main:
+    name: Tests (PHP 8.3, carve-php main)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - run: composer require markup-carve/carve-php:"dev-main as 0.1.999" --prefer-dist --no-progress
+      - run: vendor/bin/phpunit
