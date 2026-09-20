@@ -29,6 +29,7 @@ use MarkupCarve\Carve\Node\Inline\Strike;
 use MarkupCarve\Carve\Node\Inline\Strong;
 use MarkupCarve\Carve\Node\Inline\Substitution;
 use MarkupCarve\Carve\Node\Inline\Text;
+use MarkupCarve\Carve\Node\Node;
 use MarkupCarve\Chat\ChatPreviewRenderer;
 use MarkupCarve\Chat\ChatRenderer;
 use MarkupCarve\Chat\FlavorRegistry;
@@ -321,6 +322,71 @@ final class ChatRendererTest extends TestCase
         // was the mangling carve-php-chat#1 reported.
         self::assertStringContainsString('~old~ new', $rendered);
         self::assertStringContainsString('#', $rendered);
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function substitutionHalfProvider(): array
+    {
+        return [
+            'whatsapp' => ['whatsapp', "A ~_old_~ *new* run.\n"],
+            'slack' => ['slack', "A ~_old_~ *new* run.\n"],
+            'discord' => ['discord', "A ~~*old*~~ **new** run.\n"],
+            'telegram-html' => ['telegram-html', "A <s><i>old</i></s> <b>new</b> run.\n"],
+        ];
+    }
+
+    /**
+     * From SOURCE, so the halves are built by the engine rather than by hand.
+     * Both carry inline nodes; reading them as flat text dropped the emphasis
+     * and the strong on every flavor, leaving a bare `~old~ new`.
+     */
+    #[DataProvider('substitutionHalfProvider')]
+    public function testSubstitutionHalvesKeepTheirInlineMarkup(string $flavor, string $expected): void
+    {
+        $document = CarveConverter::create()->parse("A {~/old/~>*new*~} run.\n");
+
+        $rendered = (new ChatRenderer((new FlavorRegistry())->get($flavor)))->render($document);
+
+        self::assertSame($expected, $rendered);
+    }
+
+    /**
+     * The struck half is assembled from clones. Appending the caller's own
+     * nodes to the synthetic Strike would repoint their parent at it, which
+     * the rendered string cannot show - so assert the link itself.
+     */
+    public function testRenderingASubstitutionDoesNotReparentTheCallersNodes(): void
+    {
+        $document = CarveConverter::create()->parse("A {~/old/~>*new*~} run.\n");
+        $substitution = self::firstSubstitution($document);
+        $half = $substitution->getOld();
+        $child = $half->getChildren()[0];
+
+        (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->render($document);
+
+        self::assertSame($half, $child->getParent());
+    }
+
+    private static function firstSubstitution(Node $node): Substitution
+    {
+        return self::findSubstitution($node) ?? self::fail('no substitution in the parsed document');
+    }
+
+    private static function findSubstitution(Node $node): ?Substitution
+    {
+        foreach ($node->getChildren() as $child) {
+            if ($child instanceof Substitution) {
+                return $child;
+            }
+            $found = self::findSubstitution($child);
+            if ($found !== null) {
+                return $found;
+            }
+        }
+
+        return null;
     }
 
     private function richDocument(): Document

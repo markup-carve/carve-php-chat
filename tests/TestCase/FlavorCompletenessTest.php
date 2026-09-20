@@ -19,11 +19,12 @@ final class FlavorCompletenessTest extends TestCase
 {
     /**
      * Node types the renderer handles structurally rather than through the
-     * flavor table.
+     * flavor table. A substitution reads its two halves' children directly, so
+     * a `SubstitutionHalf` never reaches an emission lookup.
      *
      * @var array<string>
      */
-    private const EXEMPT = ['document'];
+    private const EXEMPT = ['document', 'substitution_half'];
 
     public function testBundledFlavorsCoverEveryCoreNodeType(): void
     {
