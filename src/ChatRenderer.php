@@ -567,7 +567,7 @@ final class ChatRenderer implements RendererInterface
     }
 
     /**
-     * `{~old~>new~}` as struck old text plus the replacement.
+     * `{~old~>new~}` as struck old content plus the replacement.
      *
      * The two sides used to be concatenated bare ("oldnew"), with no separator
      * and no styling - the one silent mangling in an otherwise
@@ -575,19 +575,24 @@ final class ChatRenderer implements RendererInterface
      * every flavor here has a spelling for, and the synthetic node takes the
      * flavor's own path, so a target without native strike still falls back
      * the way an authored `~old~` would.
+     *
+     * Both halves carry inline nodes, so they render as children rather than
+     * as flattened text; reading them through getOldText() dropped the
+     * emphasis and the strong in `{~/old/~>*new*~}` on every flavor. The
+     * clones keep the caller's document unmutated.
      */
     private function renderSubstitution(Substitution $node): string
     {
-        $old = $this->stripControls($node->getOldText());
-        $new = $this->stripControls($node->getNewText());
-
         $struck = '';
-        if ($old !== '') {
+        $old = $node->getOld()->getChildren();
+        if ($old !== []) {
             $strike = new Strike();
-            $strike->appendChild(new Text($old));
+            foreach ($old as $child) {
+                $strike->appendChild(clone $child);
+            }
             $struck = $this->renderNode($strike);
         }
-        $replacement = $new === '' ? '' : $this->escapeText($new);
+        $replacement = $this->renderChildren($node->getNew());
 
         if ($struck === '' || $replacement === '') {
             return $struck . $replacement;

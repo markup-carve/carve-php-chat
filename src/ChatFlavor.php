@@ -36,6 +36,7 @@ final readonly class ChatFlavor
         'document',
         'raw_text',
         'smart_punctuation',
+        'substitution_half',
     ];
 
     /**
