@@ -19,8 +19,11 @@ on:
   pull_request:
 
 jobs:
+  # The job name is load-bearing: branch protection requires the contexts
+  # `tests (8.2)`, `tests (8.3)` and `tests (8.4)`, which GitHub derives from
+  # this job id plus the matrix value. A `name:` override here renames the
+  # contexts, and the required ones then never report, so the PR blocks forever.
   tests:
-    name: Tests (PHP ${{ matrix.php-version }}, carve-php released)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -41,7 +44,7 @@ jobs:
         if: matrix.php-version == '8.2'
 
   engine-main:
-    name: Tests (PHP 8.3, carve-php main)
+    name: carve-php main (not required)
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
