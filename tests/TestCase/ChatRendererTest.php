@@ -369,6 +369,35 @@ final class ChatRendererTest extends TestCase
         self::assertSame($half, $child->getParent());
     }
 
+    /**
+     * An escaped space arrives as a `non_breaking_space` node of its own
+     * (carve-php 0.1.10), not as text holding a space. With no arm for it the
+     * renderer fell through to its children, of which it has none, so
+     * `a\ b` rendered as `ab`.
+     */
+    #[DataProvider('nonBreakingSpaceFlavorProvider')]
+    public function testAnEscapedSpaceSurvivesAsANonBreakingSpace(string $flavor): void
+    {
+        $document = CarveConverter::create()->parse("a\\ b\n");
+
+        $rendered = (new ChatRenderer((new FlavorRegistry())->get($flavor)))->render($document);
+
+        self::assertSame("a\u{00A0}b\n", $rendered);
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function nonBreakingSpaceFlavorProvider(): array
+    {
+        $cases = [];
+        foreach ((new FlavorRegistry())->ids() as $id) {
+            $cases[$id] = [$id];
+        }
+
+        return $cases;
+    }
+
     private static function firstSubstitution(Node $node): Substitution
     {
         return self::findSubstitution($node) ?? self::fail('no substitution in the parsed document');
