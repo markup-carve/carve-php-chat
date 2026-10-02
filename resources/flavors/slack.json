@@ -235,6 +235,11 @@
     "citation": {
       "support": "none",
       "fallback": "unwrap"
-    }
+    },
+    "directive": { "support": "none", "fallback": "unwrap" },
+    "block_extension": { "support": "none", "fallback": "unwrap" },
+    "ruby": { "support": "none", "fallback": "unwrap" },
+    "small_caps": { "support": "none", "fallback": "unwrap" },
+    "non_breaking_space": { "support": "native" }
   }
 }

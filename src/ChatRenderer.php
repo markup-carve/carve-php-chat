@@ -46,6 +46,7 @@ use MarkupCarve\Carve\Node\Inline\Link;
 use MarkupCarve\Carve\Node\Inline\LiteralInline;
 use MarkupCarve\Carve\Node\Inline\Math;
 use MarkupCarve\Carve\Node\Inline\Mention;
+use MarkupCarve\Carve\Node\Inline\NonBreakingSpace;
 use MarkupCarve\Carve\Node\Inline\RawInline;
 use MarkupCarve\Carve\Node\Inline\RawText;
 use MarkupCarve\Carve\Node\Inline\SmartPunctuation;
@@ -239,6 +240,7 @@ final class ChatRenderer implements RendererInterface
             $node instanceof Image => $this->renderImageNative($node),
             $node instanceof Mention => $this->renderMention($node),
             $node instanceof Link => $this->renderLink($node),
+            $node instanceof NonBreakingSpace => "\u{00A0}",
             $node instanceof HardBreak => "\n",
             $node instanceof SoftBreak => "\n",
             $node instanceof Strong,
@@ -549,7 +551,9 @@ final class ChatRenderer implements RendererInterface
             $language = '';
         }
 
-        $content = $this->flavor->escaper()->escapeVerbatim($this->stripControls($node->getContent()));
+        $content = $this->flavor->escaper()->escapeVerbatim(
+            $this->stripControls(self::withoutPayloadTerminator($node->getContent())),
+        );
 
         if ($this->rangeMode && $this->flavor->styleFor($node->getType()) !== null) {
             $data = $language === '' ? [] : ['language' => $language];
@@ -714,6 +718,18 @@ final class ChatRenderer implements RendererInterface
         } finally {
             $this->verbatim = $previous;
         }
+    }
+
+    /**
+     * Drops the break a code block's payload keeps after its last line,
+     * which carve-php 0.1.10 made part of `code_block.content`. Every
+     * caller here writes its own terminator before the closing delimiter,
+     * and no chat fence has a spelling that tells "a" from "a" plus a
+     * break apart.
+     */
+    private static function withoutPayloadTerminator(string $content): string
+    {
+        return str_ends_with($content, "\n") ? substr($content, 0, -1) : $content;
     }
 
     /**
