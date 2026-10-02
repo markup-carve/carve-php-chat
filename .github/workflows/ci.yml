@@ -18,6 +18,9 @@ on:
     branches: [main, next]
   pull_request:
 
+# Jobs carry an explicit timeout-minutes: without one GitHub applies a
+# 360-minute default, long enough for a stalled job to go unnoticed.
+
 jobs:
   # The job name is load-bearing: branch protection requires the contexts
   # `tests (8.2)`, `tests (8.3)` and `tests (8.4)`, which GitHub derives from
@@ -25,6 +28,7 @@ jobs:
   # contexts, and the required ones then never report, so the PR blocks forever.
   tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -46,6 +50,7 @@ jobs:
   engine-main:
     name: carve-php main (not required)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
