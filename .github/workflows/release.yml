@@ -1,4 +1,4 @@
-name: Release packages and assets
+name: Release
 
 # THE TAG IS CREATED BY THIS WORKFLOW, AFTER THE GATES PASS AND AFTER A HUMAN
 # APPROVES. It is deliberately not the trigger, and that ordering is the whole
@@ -26,32 +26,13 @@ name: Release packages and assets
 # inheriting the 360-minute GitHub default.
 
 on:
-  workflow_call:
+  workflow_dispatch:
     inputs:
-      publish:
-        required: true
-        type: boolean
-      tag:
-        required: true
-        type: string
       version:
+        description: 'Version to release, without a leading v (e.g. 0.1.3)'
         required: true
         type: string
-      release_tag:
-        required: true
-        type: string
-      source_sha:
-        required: true
-        type: string
-      release_id:
-        required: true
-        type: string
-      release_body:
-        required: true
-        type: string
-      notes_digest:
-        required: true
-        type: string
+
 permissions:
   # `write`, not `read`, and the draft check below is the reason: a DRAFT
   # release is invisible to a caller without push access, so under
@@ -59,8 +40,12 @@ permissions:
   # release" for a draft sitting right there with notes in it. See
   # markup-carve/carve-wasm#80. The tag job needs it to create the ref.
   contents: write
-  actions: read
-  id-token: write
+
+concurrency:
+  # Two runs creating the same tag is a race with an irreversible loser.
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
 jobs:
   # Everything checkable BEFORE anyone is asked to approve, so the approval
   # button never appears on a release that would fail. Deliberately NOT gated,
@@ -81,14 +66,19 @@ jobs:
       # FIRST, before anything else: refuse a version that already exists. On a
       # tag-triggered workflow this was impossible by construction; now it is
       # the first thing that can go wrong, and it is the expensive failure.
-          ref: ${{ inputs.source_sha }}
-      - name: Expose the candidate tag locally
-        if: ${{ !inputs.publish }}
-        shell: bash
+      - name: No tag of this name exists yet
         env:
-          CANDIDATE_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
         run: |
-          git tag "$CANDIDATE_TAG" "${{ inputs.source_sha }}"
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$VERSION" >/dev/null 2>&1; then
+            echo "::error::A tag $VERSION already exists. A published version cannot be moved on Packagist; supersede it with a new version instead."
+            exit 1
+          fi
+          echo "No tag $VERSION yet."
+
+      # This repository tags X.Y.Z with no leading v, and the draft's tag_name
+      # has to match that spelling or the release page and the tag diverge.
       - name: The version is a plain X.Y.Z
         env:
           VERSION: ${{ inputs.version }}
@@ -162,7 +152,6 @@ jobs:
       # here, so POST /git/refs answered 403 "Resource not accessible by
       # integration" and the release stopped after the maintainer's approval.
       contents: write
-      actions: read
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -176,16 +165,70 @@ jobs:
       # reviewer, and the gate measured the repository as it was at dispatch, so
       # the gate result may no longer describe what would be tagged. Refuse
       # rather than tag something nobody verified.
-          ref: ${{ inputs.source_sha }}
-      - name: Expose the candidate tag locally
-        if: ${{ !inputs.publish }}
-        shell: bash
+      - name: The gate result still describes this commit
+        id: draft
         env:
-          CANDIDATE_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
         run: |
-          git tag "$CANDIDATE_TAG" "${{ inputs.source_sha }}"
-env:
-  LANE_TAG: ${{ inputs.tag }}
-  LANE_REF: ${{ format('refs/tags/{0}', inputs.tag) }}
-  LANE_REF_TYPE: tag
-  LANE_PUBLISH: ${{ inputs.publish }}
+          if ! grep -qE "^## \[?${VERSION//./\\.}\]?" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md no longer has a section for $VERSION. main moved while this run waited for approval, so the gate result no longer describes it. Re-run the workflow."
+            exit 1
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag $VERSION appeared while this run waited. Stopping."
+            exit 1
+          fi
+          release="$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+            --jq "[.[] | select(.tag_name == \"$VERSION\")] | first // empty")"
+          if [ -z "$release" ]; then
+            echo "::error::The draft for $VERSION is gone since the dispatch."
+            exit 1
+          fi
+          if [ "$(printf '%s' "$release" | jq -r '.draft')" != "true" ]; then
+            echo "::error::The release for $VERSION is no longer a draft."
+            exit 1
+          fi
+          target="$(printf '%s' "$release" | jq -r '.target_commitish')"
+          if [ "$target" != "$GITHUB_SHA" ]; then
+            echo "::error::The draft for $VERSION now targets $target, not the approved commit $GITHUB_SHA. Re-run the workflow."
+            exit 1
+          fi
+          echo "id=$(printf '%s' "$release" | jq -r '.id')" >> "$GITHUB_OUTPUT"
+
+      # This is the irreversible act, and it is behind the approval: Packagist
+      # learns about the version from this ref and nothing else.
+      - name: Create the tag at the approved commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/$VERSION" -f sha="$GITHUB_SHA" --jq '.ref'
+          # Read it back: exit status does not tell you what landed.
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$VERSION" --jq '"\(.ref) -> \(.object.sha)"'
+
+      # Last, deliberately: a draft that stays a draft is recoverable.
+      - name: Publish the release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          ID: ${{ steps.draft.outputs.id }}
+        run: |
+          # `tag_name` goes with every PATCH of a release. Omit it on a DRAFT
+          # and GitHub replaces the tag with a generated `untagged-*`
+          # placeholder, because a draft's tag is a string on the object rather
+          # than a git ref, so the field has nothing to fall back to.
+          # `-F draft=false`, not `-f`: with `-f` the value is the string
+          # "false", which is truthy, so the release would stay a draft while
+          # the run reported success.
+          gh api "repos/$GITHUB_REPOSITORY/releases/$ID" -X PATCH \
+            -f tag_name="$VERSION" -F draft=false --jq '"published \(.tag_name)"'
+          # Read it back: exit status does not tell you whether the tag survived
+          # the write.
+          state="$(gh api "repos/$GITHUB_REPOSITORY/releases/$ID" --jq '"\(.draft) \(.tag_name)"')"
+          echo "draft=${state% *} tag=${state#* }"
+          if [ "$state" != "false $VERSION" ]; then
+            echo "::error::The release reads back as '$state', expected 'false $VERSION'."
+            exit 1
+          fi
