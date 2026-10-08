@@ -499,4 +499,48 @@ final class ChatRendererTest extends TestCase
 
         return $cell;
     }
+
+    /**
+     * A destination that resolves to nothing used to be written out as a link
+     * anyway, so a client got `<|text>`, `<a href="">text</a>` or `[text]()`
+     * instead of the label. Six of the seven flavors were affected; only
+     * telegram-entities already wrote the label alone.
+     */
+    public function testAnUnresolvedReferenceLinkKeepsOnlyItsLabel(): void
+    {
+        $document = CarveConverter::create()->parse("[text][missing]\n");
+        $registry = new FlavorRegistry();
+
+        foreach ($registry->ids() as $id) {
+            self::assertSame(
+                "text\n",
+                (new ChatRenderer($registry->get($id)))->render($document),
+                $id . ' writes a link with no destination',
+            );
+        }
+    }
+
+    /**
+     * carve-php 0.1.11 stopped resolving a collapsed reference image against a
+     * heading id, so the image reaches the renderer with no source and the
+     * `{alt} ({url})` template left a dangling pair of parentheses.
+     */
+    public function testACollapsedReferenceImageWithNoSourceKeepsOnlyItsAlt(): void
+    {
+        $document = CarveConverter::create()->parse("{#pic}\n# Pic\n\n![Pic][]\n");
+        $registry = new FlavorRegistry();
+
+        foreach ($registry->ids() as $id) {
+            self::assertStringEndsWith(
+                "Pic\n",
+                (new ChatRenderer($registry->get($id)))->render($document),
+                $id . ' writes an image with no source',
+            );
+            self::assertStringNotContainsString(
+                '()',
+                (new ChatRenderer($registry->get($id)))->render($document),
+                $id . ' leaves an empty parenthesis behind',
+            );
+        }
+    }
 }

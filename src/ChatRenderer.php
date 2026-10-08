@@ -830,6 +830,15 @@ final class ChatRenderer implements RendererInterface
             return $this->markStyled(NodeType::LINK, $content, ['url' => $url]);
         }
 
+        if ($url === '') {
+            // No destination to send: a reference link that resolves to nothing
+            // reaches here with an empty one. Every style below would then write
+            // a link shaped like a link and pointing nowhere - `<|text>` on
+            // Slack, `<a href="">` on Telegram, `[text]()` on Discord - which
+            // the client renders as literal junk rather than as the label.
+            return $content;
+        }
+
         return match ($this->flavor->linkStyle()) {
             LinkStyle::Markdown => '[' . $this->escapeMarkdownLabel($content) . '](' . $this->escapeMarkdownDestination($url, $title) . ')',
             LinkStyle::SlackPipe => '<' . $this->escapeSlackUrl($url) . '|' . $content . '>',
@@ -1005,6 +1014,16 @@ final class ChatRenderer implements RendererInterface
             $url = $this->stripControls($node->getSource());
             $alt = $this->flavor->escaper()->escape($this->stripControls($node->getAlt()));
             $title = $this->stripControls($node->getTitle() ?? '');
+        }
+
+        if ($url === '') {
+            // A link or image whose reference resolves to nothing carries no
+            // destination, and every bundled flavor spells its template
+            // `... ({url})`, so interpolating an empty string left a dangling
+            // `()` behind the label. carve-php 0.1.11 stopped resolving a
+            // collapsed reference image against a heading id, which is how an
+            // empty destination reaches a flavor in ordinary input.
+            $template = str_replace([' ({url})', '({url})'], '', $template);
         }
 
         return strtr($template, [
