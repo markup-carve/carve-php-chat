@@ -147,6 +147,11 @@ jobs:
   # approves is looking at a passing gate rather than at nothing.
   tag:
     name: Tag ${{ inputs.version }}
+    permissions:
+      # Creating the tag is a ref write, and the default token is read-only
+      # here, so POST /git/refs answered 403 "Resource not accessible by
+      # integration" and the release stopped after the maintainer's approval.
+      contents: write
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 15
