@@ -1,0 +1,219 @@
+name: Release
+
+# THE TAG IS CREATED BY THIS WORKFLOW, AFTER THE GATES PASS AND AFTER A HUMAN
+# APPROVES. It is deliberately not the trigger, and that ordering is the whole
+# point of the file.
+#
+# Packagist is pull-based: it reads this repository's tags and serves the new
+# stable version within minutes, with no approval anywhere in the path. So on a
+# tag-triggered workflow every gate runs AFTER the only irreversible act in the
+# release. carve-grammars v0.1.12 was tagged, Packagist served it inside two
+# minutes, and the gates then refused the tag over four uncited merges, which
+# skipped the second registry. It could not be corrected: a published version's
+# source reference on Packagist is immutable, so 0.1.13 had to supersede
+# identical code. The same shape cost v0.1.10 an outright withdrawal on
+# 2026-09-30.
+#
+# Inverted here. `workflow_dispatch` runs the gates against `main`, the approval
+# sits between them and the tag, and the tag is created only after both. Nothing
+# reaches a registry until a human has looked at a passing gate.
+#
+# This package publishes nowhere beyond the tag, so there is no publish job: the
+# tag IS the release, and Packagist picks it up on its own. What remains after
+# the tag is publishing the draft notes, which happens in the same job.
+#
+# Every job declares timeout-minutes so a hung step fails in minutes rather than
+# inheriting the 360-minute GitHub default.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, without a leading v (e.g. 0.1.3)'
+        required: true
+        type: string
+
+permissions:
+  # `write`, not `read`, and the draft check below is the reason: a DRAFT
+  # release is invisible to a caller without push access, so under
+  # `contents: read` the listing comes back empty and the gate reports "no
+  # release" for a draft sitting right there with notes in it. See
+  # markup-carve/carve-wasm#80. The tag job needs it to create the ref.
+  contents: write
+
+concurrency:
+  # Two runs creating the same tag is a race with an irreversible loser.
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  # Everything checkable BEFORE anyone is asked to approve, so the approval
+  # button never appears on a release that would fail. Deliberately NOT gated,
+  # and deliberately a JOB of its own rather than steps of the tag job: a gate
+  # folded into the job it guards gets skipped on an early failure while the job
+  # still reports green, which is how a vulnerable carve-py shipped.
+  verify:
+    name: Verify ${{ inputs.version }} is releasable
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Tags are read below, and a release gate that cannot see the previous
+          # tag cannot reason about the range it is releasing.
+          fetch-depth: 0
+
+      # FIRST, before anything else: refuse a version that already exists. On a
+      # tag-triggered workflow this was impossible by construction; now it is
+      # the first thing that can go wrong, and it is the expensive failure.
+      - name: No tag of this name exists yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$VERSION" >/dev/null 2>&1; then
+            echo "::error::A tag $VERSION already exists. A published version cannot be moved on Packagist; supersede it with a new version instead."
+            exit 1
+          fi
+          echo "No tag $VERSION yet."
+
+      # This repository tags X.Y.Z with no leading v, and the draft's tag_name
+      # has to match that spelling or the release page and the tag diverge.
+      - name: The version is a plain X.Y.Z
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::$VERSION is not a plain X.Y.Z version. A -dev or other prerelease version never releases; cut the release first."
+            exit 1
+          fi
+
+      - name: CHANGELOG.md has a section for this version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! grep -qE "^## \[?${VERSION//./\\.}\]?" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no section for $VERSION; cut it from Unreleased first."
+            exit 1
+          fi
+
+      # GATE: the notes are not the workflow's to write. A CHANGELOG entry is
+      # deliberately one or two lines for a contributor, which makes poor
+      # release notes for a reader deciding whether to upgrade. A human writes
+      # the draft first and this refuses to release without one.
+      #
+      # Found by listing rather than `gh release view <tag>`: a draft's tag is
+      # not a git ref, so addressing one by tag can match nothing, change
+      # nothing and still exit 0.
+      - name: A draft release for this version exists, has notes, and targets this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          release="$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+            --jq "[.[] | select(.tag_name == \"$VERSION\")] | first // empty")"
+          if [ -z "$release" ]; then
+            echo "::error::No release found with tag_name $VERSION. Create the draft with its notes before dispatching."
+            echo "::error::If a draft DOES exist, this job could not see it - check that the workflow still declares contents: write."
+            exit 1
+          fi
+          if [ "$(printf '%s' "$release" | jq -r '.draft')" != "true" ]; then
+            echo "::error::The release for $VERSION is already published."
+            exit 1
+          fi
+          body="$(printf '%s' "$release" | jq -r '.body // ""' | tr -d '[:space:]')"
+          [ -n "$body" ] \
+            || { echo "::error::The draft for $VERSION has no notes."; exit 1; }
+          target="$(printf '%s' "$release" | jq -r '.target_commitish')"
+          if [ "$target" != "$GITHUB_SHA" ]; then
+            echo "::error::The draft for $VERSION targets $target, but this run is on $GITHUB_SHA. Point the draft at the commit being released, or dispatch from the commit it targets."
+            exit 1
+          fi
+          echo "Draft $(printf '%s' "$release" | jq -r '.id') targets $target."
+
+  # After approval, and only then. The `release` environment carries a required
+  # reviewer, so this job waits for a human before its first step runs, and
+  # `needs:` makes it unreachable until the gate above is green - so whoever
+  # approves is looking at a passing gate rather than at nothing.
+  tag:
+    name: Tag ${{ inputs.version }}
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # RE-CHECKED UNDER THE APPROVAL. `main` can move while a run waits for a
+      # reviewer, and the gate measured the repository as it was at dispatch, so
+      # the gate result may no longer describe what would be tagged. Refuse
+      # rather than tag something nobody verified.
+      - name: The gate result still describes this commit
+        id: draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! grep -qE "^## \[?${VERSION//./\\.}\]?" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md no longer has a section for $VERSION. main moved while this run waited for approval, so the gate result no longer describes it. Re-run the workflow."
+            exit 1
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag $VERSION appeared while this run waited. Stopping."
+            exit 1
+          fi
+          release="$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+            --jq "[.[] | select(.tag_name == \"$VERSION\")] | first // empty")"
+          if [ -z "$release" ]; then
+            echo "::error::The draft for $VERSION is gone since the dispatch."
+            exit 1
+          fi
+          if [ "$(printf '%s' "$release" | jq -r '.draft')" != "true" ]; then
+            echo "::error::The release for $VERSION is no longer a draft."
+            exit 1
+          fi
+          target="$(printf '%s' "$release" | jq -r '.target_commitish')"
+          if [ "$target" != "$GITHUB_SHA" ]; then
+            echo "::error::The draft for $VERSION now targets $target, not the approved commit $GITHUB_SHA. Re-run the workflow."
+            exit 1
+          fi
+          echo "id=$(printf '%s' "$release" | jq -r '.id')" >> "$GITHUB_OUTPUT"
+
+      # This is the irreversible act, and it is behind the approval: Packagist
+      # learns about the version from this ref and nothing else.
+      - name: Create the tag at the approved commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/$VERSION" -f sha="$GITHUB_SHA" --jq '.ref'
+          # Read it back: exit status does not tell you what landed.
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$VERSION" --jq '"\(.ref) -> \(.object.sha)"'
+
+      # Last, deliberately: a draft that stays a draft is recoverable.
+      - name: Publish the release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          ID: ${{ steps.draft.outputs.id }}
+        run: |
+          # `tag_name` goes with every PATCH of a release. Omit it on a DRAFT
+          # and GitHub replaces the tag with a generated `untagged-*`
+          # placeholder, because a draft's tag is a string on the object rather
+          # than a git ref, so the field has nothing to fall back to.
+          # `-F draft=false`, not `-f`: with `-f` the value is the string
+          # "false", which is truthy, so the release would stay a draft while
+          # the run reported success.
+          gh api "repos/$GITHUB_REPOSITORY/releases/$ID" -X PATCH \
+            -f tag_name="$VERSION" -F draft=false --jq '"published \(.tag_name)"'
+          # Read it back: exit status does not tell you whether the tag survived
+          # the write.
+          state="$(gh api "repos/$GITHUB_REPOSITORY/releases/$ID" --jq '"\(.draft) \(.tag_name)"')"
+          echo "draft=${state% *} tag=${state#* }"
+          if [ "$state" != "false $VERSION" ]; then
+            echo "::error::The release reads back as '$state', expected 'false $VERSION'."
+            exit 1
+          fi
