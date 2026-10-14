@@ -31,6 +31,16 @@ final class ChatPreviewRendererTest extends TestCase
         );
     }
 
+    public function testContinuationRowJoinsTheCellWithASpace(): void
+    {
+        $document = CarveConverter::create()->parse("| A | B |\n|---|---|\n| 1 | 2 |\n+ x | y |\n");
+
+        self::assertSame(
+            "<pre><code>A    B\n1 x  2 y</code></pre>",
+            (new ChatPreviewRenderer((new FlavorRegistry())->get('slack')))->render($document),
+        );
+    }
+
     /**
      * A range-based target still shows the styling on screen - it just sends it
      * as offsets rather than delimiters - so its preview is styled too.

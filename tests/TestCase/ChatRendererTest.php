@@ -131,6 +131,20 @@ final class ChatRendererTest extends TestCase
     }
 
     /**
+     * A `+` continuation row joins its cell with one space, not by gluing words.
+     */
+    public function testContinuationRowJoinsTheCellWithASpace(): void
+    {
+        $source = "| A | B |\n|---|---|\n| 1 | 2 |\n+ x | y |\n";
+        $document = CarveConverter::create()->parse($source);
+
+        self::assertSame(
+            "```\nA    B\n1 x  2 y\n```\n",
+            (new ChatRenderer((new FlavorRegistry())->get('discord')))->render($document),
+        );
+    }
+
+    /**
      * Slack mention syntax needs a real user ID. A Carve mention carries only
      * the literal label, so it is emitted as written rather than wrapped into
      * an ID that does not exist.

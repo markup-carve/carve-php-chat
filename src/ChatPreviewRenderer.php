@@ -13,6 +13,7 @@ use MarkupCarve\Carve\Node\Block\Paragraph;
 use MarkupCarve\Carve\Node\Block\Table;
 use MarkupCarve\Carve\Node\Block\TableCell;
 use MarkupCarve\Carve\Node\Document;
+use MarkupCarve\Carve\Node\Inline\CellWrap;
 use MarkupCarve\Carve\Node\Inline\Code;
 use MarkupCarve\Carve\Node\Inline\EscapedText;
 use MarkupCarve\Carve\Node\Inline\HardBreak;
@@ -408,6 +409,9 @@ final class ChatPreviewRenderer implements RendererInterface
     {
         if ($node instanceof Text || $node instanceof EscapedText || $node instanceof Code) {
             return $node->getContent();
+        }
+        if ($node instanceof CellWrap) {
+            return ' ';
         }
 
         $out = '';

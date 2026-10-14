@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 0.1.3 - 2026-10-14
+### Fixed
+
+- A table row continued on a `+` line renders its join as one space in every
+  flavor and in the preview, instead of gluing the words together. carve-php
+  0.1.12 keeps the join as a `cell_wrap` node (#21).
+
+### Changed
+
+- Require carve-php `^0.1.12`, up from `^0.1.10`, and declare `cell_wrap`
+  native in the bundled flavors (#21).
+
 ## 0.1.2 - 2026-10-08
 ### Fixed
 
