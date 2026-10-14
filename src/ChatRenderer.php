@@ -27,6 +27,7 @@ use MarkupCarve\Carve\Node\Block\TableRow;
 use MarkupCarve\Carve\Node\Block\ThematicBreak;
 use MarkupCarve\Carve\Node\Document;
 use MarkupCarve\Carve\Node\Inline\CaptionNumber;
+use MarkupCarve\Carve\Node\Inline\CellWrap;
 use MarkupCarve\Carve\Node\Inline\CitationGroup;
 use MarkupCarve\Carve\Node\Inline\Code;
 use MarkupCarve\Carve\Node\Inline\CriticComment;
@@ -243,6 +244,7 @@ final class ChatRenderer implements RendererInterface
             $node instanceof NonBreakingSpace => "\u{00A0}",
             $node instanceof HardBreak => "\n",
             $node instanceof SoftBreak => "\n",
+            $node instanceof CellWrap => ' ',
             $node instanceof Strong,
             $node instanceof Emphasis,
             $node instanceof Underline,

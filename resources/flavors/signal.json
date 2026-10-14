@@ -148,6 +148,9 @@
     "soft_break": {
       "support": "native"
     },
+    "cell_wrap": {
+      "support": "native"
+    },
     "hard_break": {
       "support": "native"
     },
