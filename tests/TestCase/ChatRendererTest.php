@@ -535,6 +535,43 @@ final class ChatRendererTest extends TestCase
     }
 
     /**
+     * carve-php 0.1.13 parses `[text]()` and `![alt]()` as a link and an image with
+     * an empty destination; before, they stayed literal text.
+     */
+    public function testAnEmptyDestinationKeepsOnlyTheLabel(): void
+    {
+        $document = CarveConverter::create()->parse("See [text]() and ![alt]() end.\n");
+        $registry = new FlavorRegistry();
+
+        foreach ($registry->ids() as $id) {
+            self::assertSame(
+                "See text and alt end.\n",
+                (new ChatRenderer($registry->get($id)))->render($document),
+                $id . ' writes a link or image with no destination',
+            );
+        }
+    }
+
+    /**
+     * carve-php 0.1.13 reads a `{table}` CSV fence as a table, so it degrades the
+     * way a pipe table does rather than as a code block.
+     */
+    public function testACsvTableFenceRendersLikeAPipeTable(): void
+    {
+        $registry = new FlavorRegistry();
+        $csv = CarveConverter::create()->parse("{table}\n``` csv\na,b\n1,2\n```\n");
+        $pipe = CarveConverter::create()->parse("| a | b |\n|---|---|\n| 1 | 2 |\n");
+
+        foreach ($registry->ids() as $id) {
+            self::assertSame(
+                (new ChatRenderer($registry->get($id)))->render($pipe),
+                (new ChatRenderer($registry->get($id)))->render($csv),
+                $id,
+            );
+        }
+    }
+
+    /**
      * carve-php 0.1.11 stopped resolving a collapsed reference image against a
      * heading id, so the image reaches the renderer with no source and the
      * `{alt} ({url})` template left a dangling pair of parentheses.
