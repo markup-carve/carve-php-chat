@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Tags are read below, and a release gate that cannot see the previous
           # tag cannot reason about the range it is releasing.
@@ -157,7 +157,7 @@ jobs:
     timeout-minutes: 15
     environment: release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
