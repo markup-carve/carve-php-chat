@@ -10,7 +10,7 @@ All notable changes to this project are documented in this file.
 - Require carve-php `^0.1.14`, up from `^0.1.12`. Through carve-php 0.1.13,
   `[text]()` and `![alt]()` are a link and an image with an empty destination
   rather than literal text, and every flavor writes only the label or alt text.
-  A `{table}` CSV or TSV fence is a table and degrades like a pipe table.
+  A `{table}` CSV or TSV fence is a table and degrades like a pipe table (#22).
 
 ## 0.1.3 - 2026-10-14
 ### Fixed
