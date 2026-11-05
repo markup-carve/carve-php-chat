@@ -54,7 +54,8 @@ foreach ($result->losses as $loss) {
 `sourceLine` comes from the parser's source-line mode (`sourceLines: true`) or
 from position tracking (`enablePositionTracking()`); without either it is null.
 `file` names the included file a node came from, and is null for the document
-itself.
+itself. `includedBy` then lists the include directives that reached that file,
+outermost first, each as `file`, `line` and `column`.
 
 ## Bundled flavors
 
