@@ -47,9 +47,14 @@ $result = (new ChatRenderer($flavor))->renderResult($document);
 echo $result->text;
 
 foreach ($result->losses as $loss) {
-    printf("line %s: %s\n", $loss->sourceLine ?? '?', $loss->reason);
+    printf("%s:%s: %s\n", $loss->file ?? 'input', $loss->sourceLine ?? '?', $loss->reason);
 }
 ```
+
+`sourceLine` comes from the parser's source-line mode (`sourceLines: true`) or
+from position tracking (`enablePositionTracking()`); without either it is null.
+`file` names the included file a node came from, and is null for the document
+itself.
 
 ## Bundled flavors
 

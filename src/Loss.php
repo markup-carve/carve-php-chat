@@ -11,6 +11,7 @@ final readonly class Loss
         public ?int $sourceLine,
         public Fallback $fallback,
         public string $reason,
+        public ?string $file = null,
     ) {
     }
 }

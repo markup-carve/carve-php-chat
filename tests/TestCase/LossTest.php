@@ -14,6 +14,10 @@ use MarkupCarve\Carve\Node\Document;
 use MarkupCarve\Carve\Node\Inline\Link;
 use MarkupCarve\Carve\Node\Inline\Text;
 use MarkupCarve\Carve\NodeType;
+use MarkupCarve\Carve\Transform\IncludeContext;
+use MarkupCarve\Carve\Transform\IncludeExpander;
+use MarkupCarve\Carve\Transform\IncludeResolverInterface;
+use MarkupCarve\Carve\Transform\ResolvedInclude;
 use MarkupCarve\Chat\ChatRenderer;
 use MarkupCarve\Chat\Fallback;
 use MarkupCarve\Chat\FlavorRegistry;
@@ -87,6 +91,39 @@ final class LossTest extends TestCase
         $result = (new ChatRenderer((new FlavorRegistry())->get('discord')))->renderResult($document);
 
         self::assertSame('document', $result->losses[0]->nodeType);
+    }
+
+    public function testLossTakesItsLineFromPositionTracking(): void
+    {
+        $converter = CarveConverter::create();
+        $converter->getParser()->enablePositionTracking();
+        $document = $converter->parse("a\n\n***\n");
+
+        $loss = (new ChatRenderer((new FlavorRegistry())->get('slack')))->renderResult($document)->losses[0];
+
+        self::assertSame(NodeType::THEMATIC_BREAK, $loss->nodeType);
+        self::assertSame(3, $loss->sourceLine);
+        self::assertNull($loss->file);
+    }
+
+    public function testLossFromIncludedContentNamesTheIncludedFile(): void
+    {
+        $resolver = new class implements IncludeResolverInterface {
+            public function resolve(string $path, IncludeContext $context): ?ResolvedInclude
+            {
+                return $path === 'part.crv' ? new ResolvedInclude("x\n\n***\n", $path) : null;
+            }
+        };
+        $converter = CarveConverter::create();
+        $converter->getParser()->enablePositionTracking();
+        $source = "a\n\n{{ part.crv }}\n";
+        $document = $converter->transform($converter->parse($source), new IncludeExpander($resolver, 'main.crv', source: $source));
+
+        $loss = (new ChatRenderer((new FlavorRegistry())->get('slack')))->renderResult($document)->losses[0];
+
+        self::assertSame(NodeType::THEMATIC_BREAK, $loss->nodeType);
+        self::assertSame(3, $loss->sourceLine);
+        self::assertSame('part.crv', $loss->file);
     }
 
     private function linkDocument(): Document

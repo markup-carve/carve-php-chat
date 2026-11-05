@@ -1039,7 +1039,7 @@ final class ChatRenderer implements RendererInterface
 
     private function recordLoss(Node $node, Fallback $fallback, string $reason): void
     {
-        $this->losses[] = new Loss($node->getType(), $this->sourceLine($node), $fallback, $reason);
+        $this->losses[] = new Loss($node->getType(), $this->sourceLine($node), $fallback, $reason, $node->getPos()?->file);
     }
 
     private function sourceLine(Node $node): ?int
@@ -1056,7 +1056,7 @@ final class ChatRenderer implements RendererInterface
             }
         }
 
-        return null;
+        return $node->getPos()?->startLine;
     }
 
     private function escapeMarkdownDestination(string $url, ?string $title): string
