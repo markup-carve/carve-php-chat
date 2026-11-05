@@ -65,6 +65,7 @@ use MarkupCarve\Carve\Node\Node;
 use MarkupCarve\Carve\NodeType;
 use MarkupCarve\Carve\Renderer\RendererInterface;
 use MarkupCarve\Carve\Renderer\TableLayout;
+use MarkupCarve\Carve\Transform\IncludeExpander;
 use MarkupCarve\Carve\Util\StringUtil;
 
 final class ChatRenderer implements RendererInterface
@@ -1039,7 +1040,9 @@ final class ChatRenderer implements RendererInterface
 
     private function recordLoss(Node $node, Fallback $fallback, string $reason): void
     {
-        $this->losses[] = new Loss($node->getType(), $this->sourceLine($node), $fallback, $reason, $node->getPos()?->file);
+        $pos = $node->getPos();
+        $includedBy = $pos?->file !== null ? IncludeExpander::includeSitesForPosition($pos) : null;
+        $this->losses[] = new Loss($node->getType(), $this->sourceLine($node), $fallback, $reason, $pos?->file, $includedBy);
     }
 
     private function sourceLine(Node $node): ?int

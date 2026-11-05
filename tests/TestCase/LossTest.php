@@ -104,6 +104,7 @@ final class LossTest extends TestCase
         self::assertSame(NodeType::THEMATIC_BREAK, $loss->nodeType);
         self::assertSame(3, $loss->sourceLine);
         self::assertNull($loss->file);
+        self::assertNull($loss->includedBy);
     }
 
     public function testLossFromIncludedContentNamesTheIncludedFile(): void
@@ -124,6 +125,7 @@ final class LossTest extends TestCase
         self::assertSame(NodeType::THEMATIC_BREAK, $loss->nodeType);
         self::assertSame(3, $loss->sourceLine);
         self::assertSame('part.crv', $loss->file);
+        self::assertSame([['file' => 'main.crv', 'line' => 3, 'column' => 1]], $loss->includedBy);
     }
 
     private function linkDocument(): Document
