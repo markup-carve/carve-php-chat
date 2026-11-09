@@ -1,5 +1,8 @@
 name: CI
 
+env:
+  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ github.token }}"}}'
+
 # Installs what composer.json declares, so a green run says the package works
 # for someone who installs it from Packagist.
 
