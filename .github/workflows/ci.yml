@@ -36,7 +36,7 @@ jobs:
       - name: Verify installed engine revision
         run: |
           actual="$(composer show markup-carve/carve-php --format=json | php -r '$package = json_decode(stream_get_contents(STDIN), true); echo $package["source"]["reference"] ?? "";')"
-          test "$actual" = f528aaca2dd277ed52c0c8843ffdd77fa87f875d
+          test "$actual" = a5b43d25fb2ec10e8eb18f905b1ff4734eb26dbb
       - run: vendor/bin/phpunit
       - run: vendor/bin/phpstan analyse
         if: matrix.php-version == '8.2'
