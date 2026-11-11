@@ -28,7 +28,7 @@
         "php": ">=8.2",
         "ext-json": "*",
         "ext-mbstring": "*",
-        "markup-carve/carve-php": "dev-main#f528aaca2dd277ed52c0c8843ffdd77fa87f875d"
+        "markup-carve/carve-php": "dev-main#a5b43d25fb2ec10e8eb18f905b1ff4734eb26dbb"
     },
     "require-dev": {
         "phpunit/phpunit": "^11.5 || ^12.0 || ^13.0",
