@@ -4,6 +4,21 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 0.1.5 - 2026-11-12
+### Added
+
+- `Loss` gains `file`, naming the included file a lost node came from, and
+  `sourceLine` falls back to the tracked position when the document was parsed
+  with position tracking (#25).
+- `Loss` gains `includedBy`, the include directives that reached the loss's
+  file, outermost first (#26).
+
+### Changed
+
+- Require carve-php `^0.1.17`, up from `^0.1.14`. Braced table alignment such
+  as `|={>}` aligns the column instead of showing the braces as cell text, and
+  an erased comment line joins the paragraph around it (#26, #29).
+
 ## 0.1.4 - 2026-10-23
 ### Changed
 
