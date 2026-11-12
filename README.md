@@ -1,6 +1,6 @@
 # Carve Chat Exporters
 
-Render Carve documents as WhatsApp, Slack, Telegram, Discord, or Signal messages. This development branch pins an unreleased carve-php main commit; published packages use a released engine. See the [Carve documentation](https://markup-carve.github.io/carve/).
+Render Carve documents as WhatsApp, Slack, Telegram, Discord, or Signal messages. See the [Carve documentation](https://markup-carve.github.io/carve/).
 
 ## Install
 
