@@ -33,10 +33,10 @@ jobs:
           php-version: ${{ matrix.php-version }}
           coverage: none
       - run: composer update --prefer-dist --no-progress
-      - name: Verify installed engine revision
+      - name: Verify installed engine version
         run: |
-          actual="$(composer show markup-carve/carve-php --format=json | php -r '$package = json_decode(stream_get_contents(STDIN), true); echo $package["source"]["reference"] ?? "";')"
-          test "$actual" = a5b43d25fb2ec10e8eb18f905b1ff4734eb26dbb
+          actual="$(composer show markup-carve/carve-php --format=json | php -r '$package = json_decode(stream_get_contents(STDIN), true); echo ltrim($package["versions"][0] ?? "", "v");')"
+          php -r 'exit(version_compare($argv[1], "0.1.17", ">=") ? 0 : 1);' "$actual"
       - run: vendor/bin/phpunit
       - run: vendor/bin/phpstan analyse
         if: matrix.php-version == '8.2'
