@@ -38,6 +38,31 @@ final class ChatCorpusTest extends TestCase
         return $cases;
     }
 
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function sourceProvider(): array
+    {
+        $cases = [];
+        foreach (glob(__DIR__ . '/../corpus-chat/*.crv') ?: [] as $path) {
+            $cases[basename($path)] = [$path];
+        }
+
+        return $cases;
+    }
+
+    /**
+     * C2-H-089 and C2-W-100: source rows stay used and canonical on 0.2.
+     */
+    #[DataProvider('sourceProvider')]
+    public function testCorpusSourceIsLintCleanAndCanonical(string $path): void
+    {
+        $source = file_get_contents($path);
+        self::assertIsString($source);
+        self::assertSame([], Carve::lint($source), $path);
+        self::assertSame($source, Carve::format($source, ['alignTables' => true]), $path);
+    }
+
     #[DataProvider('corpusProvider')]
     public function testCorpus(string $sourcePath, string $target, string $expectedPath): void
     {
