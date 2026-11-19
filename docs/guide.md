@@ -18,22 +18,22 @@ composer require markup-carve/carve-php-chat
 ## Usage
 
 ```php
-use MarkupCarve\Carve\CarveConverter;
+use MarkupCarve\Carve\Carve;
 use MarkupCarve\Chat\ChatRenderer;
 use MarkupCarve\Chat\FlavorRegistry;
 
-$document = CarveConverter::create()->parse($carveSource);
+$document = Carve::parse($carveSource);
 $flavor = (new FlavorRegistry())->get('slack');
 
 echo (new ChatRenderer($flavor))->render($document);
 ```
 
-`ChatRenderer` implements the core `RendererInterface`, so it also drops straight
-into `CarveConverter`:
+`ChatRenderer` implements the 0.2 `OutputWriter` contract. Register it beside the built-in writers:
 
 ```php
-$converter = CarveConverter::create(renderer: new ChatRenderer($flavor));
-echo $converter->convert($carveSource);
+$writer = new ChatRenderer($flavor);
+$writers = Carve::writers()->register($writer);
+echo Carve::writeTo($writer->target(), $document, [], $writers);
 ```
 
 ### Knowing what was lost
@@ -51,11 +51,9 @@ foreach ($result->losses as $loss) {
 }
 ```
 
-`sourceLine` comes from the parser's source-line mode (`sourceLines: true`) or
-from position tracking (`enablePositionTracking()`); without either it is null.
-`file` names the included file a node came from, and is null for the document
-itself. `includedBy` then lists the include directives that reached that file,
-outermost first, each as `file`, `line` and `column`.
+`sourceLine` comes from the 0.2 tree position. `file` names the included file a node came from. For `includedBy` site names, pass the top-level file ID to `renderResult($document, "main.crv")`; each entry then gives `file`, `line`, and `column` in outermost-first order. Parse includes through `Carve::parse($source, ["includes" => ["resolver" => $resolver, "file" => "main.crv"]])`, where the resolver implements `IncludeResolver` and returns a `text` and stable `id`.
+
+The 0.2 engine's public table grid expansion is pending in [carve-php#5250](https://github.com/markup-carve/carve-php/issues/5250). Until it lands, chat table output uses the cells in source order and merged cells are not expanded.
 
 ## Bundled flavors
 
@@ -220,7 +218,7 @@ inherited one outright, so state it fully - otherwise a key you did not restate
 
 ## Schema
 
-Keyed by `MarkupCarve\Carve\NodeType` constants.
+Keyed by Carve 0.2 AST type strings. Node fields live in `MarkupCarve\Carve\Node::$f`; flavor support remains an output policy and does not alter parsing.
 
 | field | values |
 |-------|--------|

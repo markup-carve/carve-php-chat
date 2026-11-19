@@ -4,32 +4,9 @@ declare(strict_types=1);
 
 namespace MarkupCarve\Chat\Test\TestCase;
 
-use MarkupCarve\Carve\CarveConverter;
-use MarkupCarve\Carve\Extension\AdmonitionExtension;
-use MarkupCarve\Carve\Extension\CitationsExtension;
-use MarkupCarve\Carve\Extension\DetailsExtension;
-use MarkupCarve\Carve\Extension\SpoilerExtension;
-use MarkupCarve\Carve\Extension\TabsExtension;
-use MarkupCarve\Carve\Node\Block\BlockQuote;
-use MarkupCarve\Carve\Node\Block\Footnote;
-use MarkupCarve\Carve\Node\Block\Heading;
-use MarkupCarve\Carve\Node\Block\ListBlock;
-use MarkupCarve\Carve\Node\Block\ListItem;
-use MarkupCarve\Carve\Node\Block\Paragraph;
-use MarkupCarve\Carve\Node\Block\Table;
-use MarkupCarve\Carve\Node\Block\TableCell;
-use MarkupCarve\Carve\Node\Block\TableRow;
-use MarkupCarve\Carve\Node\Document;
-use MarkupCarve\Carve\Node\Inline\CaptionNumber;
-use MarkupCarve\Carve\Node\Inline\Code;
-use MarkupCarve\Carve\Node\Inline\Emphasis;
-use MarkupCarve\Carve\Node\Inline\Image;
-use MarkupCarve\Carve\Node\Inline\Link;
-use MarkupCarve\Carve\Node\Inline\Strike;
-use MarkupCarve\Carve\Node\Inline\Strong;
-use MarkupCarve\Carve\Node\Inline\Substitution;
-use MarkupCarve\Carve\Node\Inline\Text;
-use MarkupCarve\Carve\Node\Node;
+use MarkupCarve\Carve\Carve;
+use MarkupCarve\Carve\Extension\Tabs;
+use MarkupCarve\Carve\Node;
 use MarkupCarve\Chat\ChatPreviewRenderer;
 use MarkupCarve\Chat\ChatRenderer;
 use MarkupCarve\Chat\FlavorRegistry;
@@ -103,7 +80,7 @@ final class ChatRendererTest extends TestCase
      */
     public function testMarkdownLinkLabelEscapesBrackets(): void
     {
-        $document = CarveConverter::create()->parse('[a\\]b](https://x.com)');
+        $document = Carve::parse('[a\\]b](https://x.com)');
 
         $rendered = (new ChatRenderer((new FlavorRegistry())->get('discord-bot')))->render($document);
 
@@ -116,8 +93,8 @@ final class ChatRendererTest extends TestCase
      */
     public function testTableFallbackUsesFlavorCodeDelimiters(): void
     {
-        $source = "| A | B |\n|---|---|\n| 1 | 2 |\n";
-        $document = CarveConverter::create()->parse($source);
+        $source = "|= A |= B |\n| 1 | 2 |\n";
+        $document = Carve::parse($source);
         $registry = new FlavorRegistry();
 
         self::assertSame(
@@ -135,8 +112,8 @@ final class ChatRendererTest extends TestCase
      */
     public function testContinuationRowJoinsTheCellWithASpace(): void
     {
-        $source = "| A | B |\n|---|---|\n| 1 | 2 |\n+ x | y |\n";
-        $document = CarveConverter::create()->parse($source);
+        $source = "|= A |= B |\n| 1 | 2 |\n+ x | y |\n";
+        $document = Carve::parse($source);
 
         self::assertSame(
             "```\nA    B\n1 x  2 y\n```\n",
@@ -151,7 +128,7 @@ final class ChatRendererTest extends TestCase
      */
     public function testMentionsAreNotWrappedIntoSlackIds(): void
     {
-        $document = CarveConverter::create()->parse('Ping @alice here.');
+        $document = Carve::parse('Ping @alice here.');
 
         $rendered = (new ChatRenderer((new FlavorRegistry())->get('slack')))->render($document);
 
@@ -166,8 +143,8 @@ final class ChatRendererTest extends TestCase
      */
     public function testSignalEmitsPlainTextWithStyleRanges(): void
     {
-        $source = "# Title\n\nShipped /today/: *bold*, ~struck~ and `code`.\n";
-        $document = CarveConverter::create()->parse($source);
+        $source = "# Title\n\nShipped /today/: *bold*, {~struck~} and `code`.\n"; // U-066
+        $document = Carve::parse($source);
 
         $result = (new ChatRenderer((new FlavorRegistry())->get('signal')))->renderResult($document);
 
@@ -190,7 +167,7 @@ final class ChatRendererTest extends TestCase
      */
     public function testUnwrappingAContentBearingNodeKeepsItsPayload(): void
     {
-        $document = CarveConverter::create()->parse("Run `keep inline`.\n\n~~~\nkeep block\n~~~\n");
+        $document = Carve::parse("Run `keep inline`.\n\n~~~\nkeep block\n~~~\n");
 
         $rendered = (new ChatRenderer((new FlavorRegistry())->get('signal')))->render($document);
 
@@ -205,7 +182,7 @@ final class ChatRendererTest extends TestCase
      */
     public function testHighlightIsNotTreatedAsASpoiler(): void
     {
-        $document = CarveConverter::create()->parse('A {=mark=} here.');
+        $document = Carve::parse('A {=mark=} here.');
         $registry = new FlavorRegistry();
 
         foreach (['discord', 'telegram-html', 'signal', 'whatsapp'] as $id) {
@@ -222,9 +199,7 @@ final class ChatRendererTest extends TestCase
      */
     public function testSpoilerExtensionMapsToEachTargetsOwnSpoiler(): void
     {
-        $converter = CarveConverter::create();
-        $converter->addExtension(new SpoilerExtension());
-        $document = $converter->parse('A :spoiler[hidden] here.');
+        $document = Carve::parse('A :spoiler[hidden] here.');
         $registry = new FlavorRegistry();
 
         self::assertSame(
@@ -248,9 +223,7 @@ final class ChatRendererTest extends TestCase
      */
     public function testSpoilerFallsBackToPlainTextWhereUnsupported(): void
     {
-        $converter = CarveConverter::create();
-        $converter->addExtension(new SpoilerExtension());
-        $document = $converter->parse('A :spoiler[hidden] here.');
+        $document = Carve::parse('A :spoiler[hidden] here.');
 
         self::assertSame(
             "A hidden here.\n",
@@ -264,9 +237,7 @@ final class ChatRendererTest extends TestCase
      */
     public function testCitationSurvivesInsteadOfVanishing(): void
     {
-        $converter = CarveConverter::create();
-        $converter->addExtension(new CitationsExtension());
-        $document = $converter->parse('See [@smith2020, p. 5].');
+        $document = Carve::parse('See [@smith2020, p. 5].');
 
         $rendered = (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->render($document);
 
@@ -291,11 +262,7 @@ final class ChatRendererTest extends TestCase
     #[DataProvider('labelledDivProvider')]
     public function testLabelledDivKeepsItsLabel(string $source, string $expected): void
     {
-        $converter = CarveConverter::create();
-        $converter->addExtension(new AdmonitionExtension());
-        $converter->addExtension(new DetailsExtension());
-
-        $rendered = (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->render($converter->parse($source));
+        $rendered = (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->render(Carve::parse($source));
 
         self::assertSame($expected, $rendered);
     }
@@ -306,11 +273,9 @@ final class ChatRendererTest extends TestCase
      */
     public function testTabLabelSurvives(): void
     {
-        $converter = CarveConverter::create();
-        $converter->addExtension(new TabsExtension());
-        $source = ":::: tabs\n\n{label=\"First Tab\"}\n::: tab\nFirst body.\n:::\n\n{label=\"Second Tab\"}\n::: tab\nSecond body.\n:::\n\n::::\n";
+        $source = ":::: tabs\n::: tab \"First Tab\"\nFirst body.\n:::\n::: tab \"Second Tab\"\nSecond body.\n:::\n::::\n";
 
-        $rendered = (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->render($converter->parse($source));
+        $rendered = (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->render(Carve::parse($source, ['extensions' => Tabs::extensions()]));
 
         self::assertSame("First Tab:\nFirst body.\n\nSecond Tab:\nSecond body.\n", $rendered);
     }
@@ -322,13 +287,16 @@ final class ChatRendererTest extends TestCase
      */
     public function testPropertyHeldInlineNodesAreNotEmptied(): void
     {
-        $paragraph = new Paragraph();
-        $paragraph->appendChild(new Text('A '));
-        $paragraph->appendChild(new Substitution('old', 'new'));
-        $paragraph->appendChild(new Text(' B '));
-        $paragraph->appendChild(new CaptionNumber());
-        $document = new Document();
-        $document->appendChild($paragraph);
+        // U-069: 0.2 represents a substitution as adjacent delete and insert nodes.
+        $document = new Node('document', [
+            new Node('paragraph', [
+                Node::text('A ', 0, 2),
+                new Node('delete', [Node::text('old', 2, 5)]),
+                new Node('insert', [Node::text('new', 5, 8)]),
+                Node::text(' B ', 8, 11),
+                new Node('caption_number'),
+            ]),
+        ]);
 
         $rendered = (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->render($document);
 
@@ -359,7 +327,7 @@ final class ChatRendererTest extends TestCase
     #[DataProvider('substitutionHalfProvider')]
     public function testSubstitutionHalvesKeepTheirInlineMarkup(string $flavor, string $expected): void
     {
-        $document = CarveConverter::create()->parse("A {~/old/~>*new*~} run.\n");
+        $document = Carve::parse("A {-/old/-}{+*new*+} run.\n");
 
         $rendered = (new ChatRenderer((new FlavorRegistry())->get($flavor)))->render($document);
 
@@ -373,14 +341,15 @@ final class ChatRendererTest extends TestCase
      */
     public function testRenderingASubstitutionDoesNotReparentTheCallersNodes(): void
     {
-        $document = CarveConverter::create()->parse("A {~/old/~>*new*~} run.\n");
-        $substitution = self::firstSubstitution($document);
-        $half = $substitution->getOld();
-        $child = $half->getChildren()[0];
+        // U-069: the old halves are sibling delete and insert nodes in 0.2.
+        $document = Carve::parse("A {-/old/-}{+*new*+} run.\n");
+        $paragraph = $document->children[0] ?? self::fail('missing paragraph');
+        $deleted = $paragraph->children[1] ?? self::fail('missing delete');
+        $child = $deleted->children[0] ?? self::fail('missing deleted child');
 
         (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->render($document);
 
-        self::assertSame($half, $child->getParent());
+        self::assertSame($child, $deleted->children[0]);
     }
 
     /**
@@ -392,7 +361,7 @@ final class ChatRendererTest extends TestCase
     #[DataProvider('nonBreakingSpaceFlavorProvider')]
     public function testAnEscapedSpaceSurvivesAsANonBreakingSpace(string $flavor): void
     {
-        $document = CarveConverter::create()->parse("a\\ b\n");
+        $document = Carve::parse("a\\ b\n");
 
         $rendered = (new ChatRenderer((new FlavorRegistry())->get($flavor)))->render($document);
 
@@ -412,106 +381,10 @@ final class ChatRendererTest extends TestCase
         return $cases;
     }
 
-    private static function firstSubstitution(Node $node): Substitution
+    private function richDocument(): Node
     {
-        return self::findSubstitution($node) ?? self::fail('no substitution in the parsed document');
-    }
-
-    private static function findSubstitution(Node $node): ?Substitution
-    {
-        foreach ($node->getChildren() as $child) {
-            if ($child instanceof Substitution) {
-                return $child;
-            }
-            $found = self::findSubstitution($child);
-            if ($found !== null) {
-                return $found;
-            }
-        }
-
-        return null;
-    }
-
-    private function richDocument(): Document
-    {
-        $document = new Document();
-        $heading = new Heading(1);
-        $heading->appendChild(new Text('Title'));
-        $document->appendChild($heading);
-
-        $paragraph = new Paragraph();
-        $paragraph->appendChild(new Text('Hello '));
-        $emphasis = new Emphasis();
-        $emphasis->appendChild(new Text('em'));
-        $paragraph->appendChild($emphasis);
-        $paragraph->appendChild(new Text(' '));
-        $strong = new Strong();
-        $strong->appendChild(new Text('strong'));
-        $paragraph->appendChild($strong);
-        $paragraph->appendChild(new Text(' '));
-        $strike = new Strike();
-        $strike->appendChild(new Text('strike'));
-        $paragraph->appendChild($strike);
-        $paragraph->appendChild(new Text(' '));
-        $paragraph->appendChild(new Code('a*b'));
-        $paragraph->appendChild(new Text(' '));
-        $link = new Link('https://example.com');
-        $link->appendChild(new Text('site'));
-        $paragraph->appendChild($link);
-        $paragraph->appendChild(new Text('.'));
-        $document->appendChild($paragraph);
-
-        $list = new ListBlock();
-        foreach (['one', 'two'] as $text) {
-            $item = new ListItem();
-            $itemParagraph = new Paragraph();
-            $itemParagraph->appendChild(new Text($text));
-            $item->appendChild($itemParagraph);
-            $list->appendChild($item);
-        }
-        $document->appendChild($list);
-
-        $quote = new BlockQuote();
-        $quoteParagraph = new Paragraph();
-        $quoteParagraph->appendChild(new Text('quoted'));
-        $quote->appendChild($quoteParagraph);
-        $document->appendChild($quote);
-
-        $imageParagraph = new Paragraph();
-        $imageParagraph->appendChild(new Image('https://example.com/logo.png', 'logo'));
-        $document->appendChild($imageParagraph);
-        $document->appendChild($this->table());
-
-        $footnote = new Footnote('1');
-        $footnoteParagraph = new Paragraph();
-        $footnoteParagraph->appendChild(new Text('note'));
-        $footnote->appendChild($footnoteParagraph);
-        $document->appendChild($footnote);
-
-        return $document;
-    }
-
-    private function table(): Table
-    {
-        $table = new Table();
-        $header = new TableRow(true);
-        $header->appendChild($this->cell('A', true));
-        $header->appendChild($this->cell('B', true));
-        $table->appendChild($header);
-        $row = new TableRow();
-        $row->appendChild($this->cell('1'));
-        $row->appendChild($this->cell('2'));
-        $table->appendChild($row);
-
-        return $table;
-    }
-
-    private function cell(string $text, bool $header = false): TableCell
-    {
-        $cell = new TableCell($header);
-        $cell->appendChild(new Text($text));
-
-        return $cell;
+        // U-055 and U-066: native table headers and braced strike.
+        return Carve::parse("# Title\n\nHello /em/ *strong* {~strike~} `a*b` [site](https://example.com).\n\n- one\n- two\n\n> quoted\n\n![logo](https://example.com/logo.png)\n\n|= A |= B |\n| 1 | 2 |\n\n[^1]: note\n");
     }
 
     /**
@@ -522,7 +395,7 @@ final class ChatRendererTest extends TestCase
      */
     public function testAnUnresolvedReferenceLinkKeepsOnlyItsLabel(): void
     {
-        $document = CarveConverter::create()->parse("[text][missing]\n");
+        $document = Carve::parse("[text][missing]\n");
         $registry = new FlavorRegistry();
 
         foreach ($registry->ids() as $id) {
@@ -540,7 +413,7 @@ final class ChatRendererTest extends TestCase
      */
     public function testAnEmptyDestinationKeepsOnlyTheLabel(): void
     {
-        $document = CarveConverter::create()->parse("See [text]() and ![alt]() end.\n");
+        $document = Carve::parse("See [text]() and ![alt]() end.\n");
         $registry = new FlavorRegistry();
 
         foreach ($registry->ids() as $id) {
@@ -559,8 +432,8 @@ final class ChatRendererTest extends TestCase
     public function testACsvTableFenceRendersLikeAPipeTable(): void
     {
         $registry = new FlavorRegistry();
-        $csv = CarveConverter::create()->parse("{table}\n``` csv\na,b\n1,2\n```\n");
-        $pipe = CarveConverter::create()->parse("| a | b |\n|---|---|\n| 1 | 2 |\n");
+        $csv = Carve::parse("{table}\n``` csv\na,b\n1,2\n```\n");
+        $pipe = Carve::parse("|= a |= b |\n| 1 | 2 |\n");
 
         foreach ($registry->ids() as $id) {
             self::assertSame(
@@ -578,7 +451,7 @@ final class ChatRendererTest extends TestCase
      */
     public function testACollapsedReferenceImageWithNoSourceKeepsOnlyItsAlt(): void
     {
-        $document = CarveConverter::create()->parse("{#pic}\n# Pic\n\n![Pic][]\n");
+        $document = Carve::parse("{#pic}\n# Pic\n\n![Pic][]\n");
         $registry = new FlavorRegistry();
 
         foreach ($registry->ids() as $id) {

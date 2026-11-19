@@ -1,28 +1,27 @@
 # Carve Chat Exporters
 
-Render Carve documents as WhatsApp, Slack, Telegram, Discord, or Signal messages. See the [Carve documentation](https://markup-carve.github.io/carve/).
+Render Carve 0.2 documents as WhatsApp, Slack, Telegram, Discord, or Signal messages. See the [Carve documentation](https://markup-carve.github.io/carve/).
 
-## Install
+## Install from the 0.2 branches
 
-```sh
-composer require markup-carve/carve-php-chat
-```
+The 0.2 packages are not published yet. This branch pins the PHP engine's `next2` commit through Composer's VCS repository. Install this package from its `next2` branch and run `composer update` to fetch the pinned engine.
 
 ## Usage
 
 ```php
-$flavor = (new \MarkupCarve\Chat\FlavorRegistry())->get("slack");
-$converter = \MarkupCarve\Carve\CarveConverter::create(
-    renderer: new \MarkupCarve\Chat\ChatRenderer($flavor)
-);
-echo $converter->convert("# Hello");
+use MarkupCarve\Carve\Carve;
+use MarkupCarve\Chat\ChatRenderer;
+use MarkupCarve\Chat\FlavorRegistry;
+
+$tree = Carve::parse("# Hello\n");
+$writer = new ChatRenderer((new FlavorRegistry())->get('slack'));
+echo $writer->render($tree);
+
+$writers = Carve::writers()->register($writer);
+echo Carve::writeTo($writer->target(), $tree, [], $writers);
 ```
 
-## Documentation
-
-- [Carve documentation](https://markup-carve.github.io/carve/)
-- [Guide](docs/guide.md)
-- [Documentation index](docs/README.md)
+For a loss report, call `$writer->renderResult($tree)`. Its result includes the message, losses, and style ranges. The [guide](docs/guide.md) covers flavor choices, includes, and secure previews.
 
 ## License
 

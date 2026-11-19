@@ -4,13 +4,7 @@ declare(strict_types=1);
 
 namespace MarkupCarve\Chat\Test\TestCase;
 
-use MarkupCarve\Carve\CarveConverter;
-use MarkupCarve\Carve\Node\Block\Heading;
-use MarkupCarve\Carve\Node\Block\Paragraph;
-use MarkupCarve\Carve\Node\Document;
-use MarkupCarve\Carve\Node\Inline\Link;
-use MarkupCarve\Carve\Node\Inline\Strong;
-use MarkupCarve\Carve\Node\Inline\Text;
+use MarkupCarve\Carve\Carve;
 use MarkupCarve\Chat\ChatRenderer;
 use MarkupCarve\Chat\FlavorRegistry;
 use MarkupCarve\Chat\LinkStyle;
@@ -23,16 +17,7 @@ final class CustomFlavorTest extends TestCase
         $registry = new FlavorRegistry();
         $flavor = $registry->fromJsonFile(__DIR__ . '/../fixtures/flavors/zulip.json');
 
-        $document = new Document();
-        $paragraph = new Paragraph();
-        $strong = new Strong();
-        $strong->appendChild(new Text('Zulip'));
-        $paragraph->appendChild($strong);
-        $paragraph->appendChild(new Text(' '));
-        $link = new Link('https://zulip.com');
-        $link->appendChild(new Text('site'));
-        $paragraph->appendChild($link);
-        $document->appendChild($paragraph);
+        $document = Carve::parse(' *Zulip* [site](https://zulip.com)');
 
         $result = (new ChatRenderer($flavor))->renderResult($document);
 
@@ -48,15 +33,7 @@ final class CustomFlavorTest extends TestCase
     {
         $flavor = (new FlavorRegistry())->fromJsonFile(__DIR__ . '/../fixtures/flavors/slack-internal.json');
 
-        $document = new Document();
-        $heading = new Heading(1);
-        $heading->appendChild(new Text('Title'));
-        $document->appendChild($heading);
-        $paragraph = new Paragraph();
-        $strong = new Strong();
-        $strong->appendChild(new Text('bold'));
-        $paragraph->appendChild($strong);
-        $document->appendChild($paragraph);
+        $document = Carve::parse("# Title\n\n*bold*\n");
 
         $result = (new ChatRenderer($flavor))->renderResult($document);
 
@@ -74,7 +51,7 @@ final class CustomFlavorTest extends TestCase
     {
         $flavor = (new FlavorRegistry())->fromJsonFile(__DIR__ . '/../fixtures/flavors/quote-override.json');
 
-        $document = CarveConverter::create()->parse("> quoted\n");
+        $document = Carve::parse("> quoted\n");
 
         self::assertSame("| quoted\n", (new ChatRenderer($flavor))->render($document));
     }

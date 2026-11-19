@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace MarkupCarve\Chat\Test\TestCase;
 
-use MarkupCarve\Carve\Parser\BlockParser;
+use MarkupCarve\Carve\Carve;
 use MarkupCarve\Chat\ChatRenderer;
 use MarkupCarve\Chat\FlavorRegistry;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -47,7 +47,7 @@ final class ChatCorpusTest extends TestCase
         self::assertIsString($expected);
 
         $flavorId = $target === 'telegram' ? 'telegram-html' : $target;
-        $document = (new BlockParser())->parse($source);
+        $document = Carve::parse($source);
         $actual = (new ChatRenderer((new FlavorRegistry())->get($flavorId)))->render($document);
 
         self::assertSame($expected, $actual);

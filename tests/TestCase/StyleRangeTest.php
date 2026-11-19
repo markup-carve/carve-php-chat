@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace MarkupCarve\Chat\Test\TestCase;
 
-use MarkupCarve\Carve\CarveConverter;
+use MarkupCarve\Carve\Carve;
 use MarkupCarve\Chat\ChatFlavor;
 use MarkupCarve\Chat\ChatRenderer;
 use MarkupCarve\Chat\Exception\InvalidFlavorException;
@@ -23,7 +23,7 @@ final class StyleRangeTest extends TestCase
      */
     public function testRangeModeEmitsPlainTextPlusOffsets(): void
     {
-        $document = CarveConverter::create()->parse('Shipped *bold* and /em/ and `code`.');
+        $document = Carve::parse('Shipped *bold* and /em/ and `code`.');
 
         $result = (new ChatRenderer((new FlavorRegistry())->get('signal')))->renderResult($document);
 
@@ -45,7 +45,7 @@ final class StyleRangeTest extends TestCase
      */
     public function testEveryRangeSelectsItsOwnText(): void
     {
-        $document = CarveConverter::create()->parse('A *one* B /two/ C `three` D');
+        $document = Carve::parse('A *one* B /two/ C `three` D');
 
         $result = (new ChatRenderer((new FlavorRegistry())->get('signal')))->renderResult($document);
         $selected = [];
@@ -62,7 +62,7 @@ final class StyleRangeTest extends TestCase
      */
     public function testMarkupFlavorsEmitNoRanges(): void
     {
-        $document = CarveConverter::create()->parse('Shipped *bold*.');
+        $document = Carve::parse('Shipped *bold*.');
         $registry = new FlavorRegistry();
 
         foreach (['whatsapp', 'slack', 'discord', 'telegram-html'] as $id) {
@@ -90,7 +90,7 @@ final class StyleRangeTest extends TestCase
     #[DataProvider('offsetUnitProvider')]
     public function testOffsetsHonorTheDeclaredUnit(OffsetUnit $unit, int $expectedStart): void
     {
-        $document = CarveConverter::create()->parse('👍 *bold* ok');
+        $document = Carve::parse('👍 *bold* ok');
         $flavor = $this->signalWithUnit($unit);
 
         $result = (new ChatRenderer($flavor))->renderResult($document);
@@ -104,7 +104,7 @@ final class StyleRangeTest extends TestCase
      */
     public function testNestedMarksProduceOverlappingRanges(): void
     {
-        $document = CarveConverter::create()->parse('A */both/* B');
+        $document = Carve::parse('A */both/* B');
 
         $result = (new ChatRenderer((new FlavorRegistry())->get('signal')))->renderResult($document);
 
@@ -127,7 +127,7 @@ final class StyleRangeTest extends TestCase
      */
     public function testNoMarkerSentinelsLeakIntoTheText(): void
     {
-        $document = CarveConverter::create()->parse("*a* /b/ `c`\n\n> *quoted*\n\n- *item*\n");
+        $document = Carve::parse("*a* /b/ `c`\n\n> *quoted*\n\n- *item*\n");
 
         $result = (new ChatRenderer((new FlavorRegistry())->get('signal')))->renderResult($document);
 
@@ -141,7 +141,7 @@ final class StyleRangeTest extends TestCase
     public function testRangesCarryTheirPayload(): void
     {
         $source = "[docs](https://e.com/a)\n\n> quoted\n\n``` php\necho 1;\n```\n";
-        $document = CarveConverter::create()->parse($source);
+        $document = Carve::parse($source);
 
         $result = (new ChatRenderer((new FlavorRegistry())->get('telegram-entities')))->renderResult($document);
 
@@ -162,7 +162,7 @@ final class StyleRangeTest extends TestCase
      */
     public function testPayloadFlavorDoesNotAlsoInlineTheUrl(): void
     {
-        $document = CarveConverter::create()->parse('See [docs](https://e.com).');
+        $document = Carve::parse('See [docs](https://e.com).');
 
         $result = (new ChatRenderer((new FlavorRegistry())->get('telegram-entities')))->renderResult($document);
 
