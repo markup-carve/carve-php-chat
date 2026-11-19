@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- Port chat rendering and previews to Carve 0.2's public `Node` tree and output writer registry. The PHP engine is pinned to its `next2` commit.
+- Update bundled flavors for the 0.2 AST vocabulary, migrate source fixtures, and retain safe URL handling and loss reports.
+- Parse with `Carve::parse()` and register `ChatRenderer` through `Carve::writers()` for `Carve::writeTo()`.
+
 ## 0.1.5 - 2026-11-12
 ### Added
 

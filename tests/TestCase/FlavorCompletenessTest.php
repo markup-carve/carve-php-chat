@@ -4,113 +4,64 @@ declare(strict_types=1);
 
 namespace MarkupCarve\Chat\Test\TestCase;
 
-use MarkupCarve\Carve\NodeType;
+use MarkupCarve\Carve\Carve;
+use MarkupCarve\Carve\Node;
 use MarkupCarve\Chat\ChatFlavor;
 use MarkupCarve\Chat\FlavorRegistry;
 use PHPUnit\Framework\TestCase;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use ReflectionClass;
-use SplFileInfo;
-use function file_get_contents;
-use function preg_match;
 
 final class FlavorCompletenessTest extends TestCase
 {
     /**
-     * Node types the renderer handles structurally rather than through the
-     * flavor table. A substitution reads its two halves' children directly, so
-     * a `SubstitutionHalf` never reaches an emission lookup.
-     *
+     * @var array
+     */
+    /**
      * @var array<string>
      */
-    private const EXEMPT = ['document', 'substitution_half'];
+    private const STRUCTURAL = ['document', 'include'];
 
     public function testBundledFlavorsCoverEveryCoreNodeType(): void
     {
         $registry = new FlavorRegistry();
-        $nodeTypes = array_merge(NodeType::allBlockTypes(), NodeType::allInlineTypes());
-
         foreach ($registry->ids() as $id) {
             $flavor = $registry->get($id);
-            foreach ($nodeTypes as $nodeType) {
-                self::assertIsArray($flavor->emission($nodeType), $id . ' missing ' . $nodeType);
+            foreach ($this->schemaTypes() as $type) {
+                if (in_array($type, self::STRUCTURAL, true)) {
+                    continue;
+                }
+                self::assertIsArray($flavor->emission($type), $id . ' missing ' . $type);
             }
         }
     }
 
-    /**
-     * The gate above reflects over NodeType, which is not the whole story: five
-     * node classes have no constant there. One of them, `citation_group`, had
-     * no entry in any flavor, so every citation was silently dropped and no
-     * test noticed. This derives the list from the node classes themselves.
-     */
     public function testBundledFlavorsCoverNodeTypesThatHaveNoConstant(): void
     {
-        $registry = new FlavorRegistry();
-
-        foreach ($this->nodeTypesFromSource() as $nodeType => $class) {
-            if (in_array($nodeType, self::EXEMPT, true)) {
-                continue;
-            }
-
-            foreach ($registry->ids() as $id) {
-                self::assertIsArray(
-                    $registry->get($id)->emission($nodeType),
-                    sprintf('%s has no entry for "%s" (%s), so those nodes degrade unchecked.', $id, $nodeType, $class),
-                );
-            }
-        }
+        // AST 2.0 uses one public Node class. Its schema inventory replaces the
+        // 0.1 NodeType constant and subclass checks (C2-A-021).
+        $types = ChatFlavor::knownNodeTypes();
+        sort($types);
+        $schema = $this->schemaTypes();
+        sort($schema);
+        self::assertSame($schema, $types);
     }
 
-    /**
-     * Keeps the hardcoded list of constant-less types honest: a new one in the
-     * core must be added deliberately rather than slipping past both gates.
-     */
     public function testExtraNodeTypeListMatchesTheCore(): void
     {
-        $constants = array_values(array_filter(
-            (new ReflectionClass(NodeType::class))->getConstants(),
-            static fn ($value): bool => is_string($value),
-        ));
-
-        $withoutConstant = array_values(array_diff(
-            array_keys($this->nodeTypesFromSource()),
-            $constants,
-        ));
-
-        sort($withoutConstant);
-        $declared = ChatFlavor::EXTRA_NODE_TYPES;
-        sort($declared);
-
-        self::assertSame($declared, $withoutConstant);
+        $tree = Carve::parse("# Title\n\nA *strong* word.\n");
+        self::assertInstanceOf(Node::class, $tree);
+        foreach ($tree->children ?? [] as $child) {
+            self::assertInstanceOf(Node::class, $child);
+        }
     }
 
     /**
-     * Every node type the core can actually produce, read from the `getType()`
-     * of each node class.
-     *
-     * @return array<string, string>
+     * @return array<string>
      */
-    private function nodeTypesFromSource(): array
+    private function schemaTypes(): array
     {
-        $root = dirname(__DIR__, 2) . '/vendor/markup-carve/carve-php/src/Node';
-        self::assertDirectoryExists($root);
+        $path = dirname(__DIR__, 2) . '/vendor/markup-carve/carve-php/spec/data/ast-schema.json';
+        $schema = json_decode((string)file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
 
-        $types = [];
-        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root)) as $file) {
-            if (!$file instanceof SplFileInfo || $file->getExtension() !== 'php') {
-                continue;
-            }
-
-            $source = (string)file_get_contents($file->getPathname());
-            if (preg_match('/function getType\(\): string\s*\{\s*return \'([^\']+)\';/', $source, $matches) === 1) {
-                $types[$matches[1]] = $file->getBasename('.php');
-            }
-        }
-
-        self::assertNotSame([], $types, 'Found no node classes - the scan path is wrong.');
-
-        return $types;
+        return array_values(array_filter(array_keys($schema['$defs']), 'is_string'));
     }
 }

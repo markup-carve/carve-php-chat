@@ -4,53 +4,9 @@ declare(strict_types=1);
 
 namespace MarkupCarve\Chat;
 
-use MarkupCarve\Carve\Node\Block\BlockQuote;
-use MarkupCarve\Carve\Node\Block\CodeBlock;
-use MarkupCarve\Carve\Node\Block\Heading;
-use MarkupCarve\Carve\Node\Block\ListBlock;
-use MarkupCarve\Carve\Node\Block\ListItem;
-use MarkupCarve\Carve\Node\Block\Paragraph;
-use MarkupCarve\Carve\Node\Block\Table;
-use MarkupCarve\Carve\Node\Block\TableCell;
-use MarkupCarve\Carve\Node\Document;
-use MarkupCarve\Carve\Node\Inline\CellWrap;
-use MarkupCarve\Carve\Node\Inline\Code;
-use MarkupCarve\Carve\Node\Inline\EscapedText;
-use MarkupCarve\Carve\Node\Inline\HardBreak;
-use MarkupCarve\Carve\Node\Inline\Image;
-use MarkupCarve\Carve\Node\Inline\InlineExtension;
-use MarkupCarve\Carve\Node\Inline\Link;
-use MarkupCarve\Carve\Node\Inline\SoftBreak;
-use MarkupCarve\Carve\Node\Inline\Text;
-use MarkupCarve\Carve\Node\Node;
-use MarkupCarve\Carve\NodeType;
-use MarkupCarve\Carve\Renderer\RendererInterface;
-use MarkupCarve\Carve\Renderer\TableLayout;
+use MarkupCarve\Carve\Node;
 
-/**
- * Renders what a chat client would actually put on screen, rather than the
- * markup sent to it.
- *
- * This needs no extra per-platform data. Which marks a target supports is
- * already in the flavor table, and the mapping from a supported mark to its
- * visual form is universal - strong is bold everywhere it exists at all.
- *
- * There are two paths, matching the two {@see OutputMode}s:
- *
- * - `ranges` - built from what was actually sent, applying the style offsets
- *   over the plain-text body. Nothing else is interpreted, so a construct the
- *   platform has no syntax for shows as the literal characters in the message.
- *   Re-walking the AST here would invent a quote block or a bullet list the
- *   platform does not have.
- * - `markup` - walks the AST, honoring the flavor's support table for blocks
- *   too. Slack has no list syntax, so its `- ` is a hyphen on screen, not a
- *   bullet.
- *
- * Security: every text value is escaped, and raw nodes are never passed
- * through as markup. The output is meant to be embedded in a page, so nothing
- * derived from the document may reach it unescaped.
- */
-final class ChatPreviewRenderer implements RendererInterface
+final class ChatPreviewRenderer
 {
     /**
      * @var int
@@ -58,55 +14,42 @@ final class ChatPreviewRenderer implements RendererInterface
     public const MAX_RENDER_DEPTH = 512;
 
     /**
-     * Supported inline marks and the tag that shows them. Not per-platform:
-     * the flavor decides *whether* a mark survives, this decides how it looks.
-     *
+     * @var array
+     */
+    /**
      * @var array<string, string>
      */
     private const MARK_TAGS = [
-        NodeType::STRONG => 'strong',
-        NodeType::EMPHASIS => 'em',
-        NodeType::STRIKE => 's',
-        NodeType::UNDERLINE => 'u',
-        NodeType::HIGHLIGHT => 'mark',
-        NodeType::INSERT => 'ins',
-        NodeType::DELETE => 'del',
+        'strong' => 'strong',
+        'emphasis' => 'em',
+        'strike' => 's',
+        'underline' => 'u',
+        'highlight' => 'mark',
+        'insert' => 'ins',
+        'delete' => 'del',
     ];
 
     /**
-     * Carve's spoiler is an extension rather than a core node, so flavors
-     * address it by a qualified key.
-     *
      * @var string
      */
-    private const SPOILER_KEY = NodeType::INLINE_EXTENSION . ':spoiler';
+    private const SPOILER_KEY = 'inline_extension:spoiler';
 
-    private int $renderDepth = 0;
+    private int $depth = 0;
 
     public function __construct(private readonly ChatFlavor $flavor)
     {
     }
 
-    public function render(Document $document): string
+    public function render(Node $document): string
     {
-        $this->renderDepth = 0;
-
-        // A range-based target sends plain text with style offsets, so its
-        // preview is built from what was actually sent rather than from the
-        // AST. Anything the platform has no syntax for - a quote, a list, a
-        // heading - is then literally those characters on screen, which is
-        // what the reader sees. Re-walking the AST here would invent structure
-        // the platform does not have.
+        $this->depth = 0;
         if ($this->flavor->output() === OutputMode::Ranges) {
             return $this->renderFromRanges((new ChatRenderer($this->flavor))->renderResult($document));
         }
 
-        return trim($this->renderChildren($document));
+        return trim($this->children($document));
     }
 
-    /**
-     * Applies style offsets over the plain-text body.
-     */
     private function renderFromRanges(ChatResult $result): string
     {
         $text = $result->text;
@@ -159,10 +102,10 @@ final class ChatPreviewRenderer implements RendererInterface
 
         return match ($nodeType) {
             self::SPOILER_KEY => ['<span class="spoiler">', '</span>'],
-            NodeType::CODE => ['<code>', '</code>'],
-            NodeType::CODE_BLOCK => ['<pre><code>', '</code></pre>'],
-            NodeType::BLOCKQUOTE => ['<blockquote>', '</blockquote>'],
-            NodeType::LINK => $this->linkOpenTag($range),
+            'code' => ['<code>', '</code>'],
+            'code_block' => ['<pre><code>', '</code></pre>'],
+            'block_quote' => ['<blockquote>', '</blockquote>'],
+            'link' => $this->linkOpenTag($range),
             default => null,
         };
     }
@@ -188,7 +131,7 @@ final class ChatPreviewRenderer implements RendererInterface
     {
         $candidates = array_merge(
             array_keys(self::MARK_TAGS),
-            [NodeType::CODE, NodeType::CODE_BLOCK, NodeType::BLOCKQUOTE, NodeType::LINK, self::SPOILER_KEY],
+            ['code', 'code_block', 'block_quote', 'link', self::SPOILER_KEY],
         );
 
         foreach ($candidates as $nodeType) {
@@ -216,36 +159,38 @@ final class ChatPreviewRenderer implements RendererInterface
         };
     }
 
-    private function renderChildren(Node $node): string
+    private function children(Node $node): string
     {
         $out = '';
-        foreach ($node->getChildren() as $child) {
-            $out .= $this->renderNode($child);
+        $children = $node->children ?? [];
+        foreach ($children as $index => $child) {
+            if ($child->type === 'soft_break' && ($children[$index + 1]->type ?? '') === 'comment') {
+                continue;
+            }
+            $out .= $this->node($child);
         }
 
         return $out;
     }
 
-    private function renderNode(Node $node): string
+    private function node(Node $node): string
     {
-        if ($this->renderDepth >= self::MAX_RENDER_DEPTH) {
+        if ($this->depth >= self::MAX_RENDER_DEPTH) {
             return '';
         }
-
-        $this->renderDepth++;
+        $this->depth++;
         try {
-            return $this->renderNodeInner($node);
+            return $this->nodeInner($node);
         } finally {
-            $this->renderDepth--;
+            $this->depth--;
         }
     }
 
-    private function renderNodeInner(Node $node): string
+    private function nodeInner(Node $node): string
     {
-        $type = $node->getType();
-
+        $type = $node->type;
         if (isset(self::MARK_TAGS[$type])) {
-            $inner = $this->renderChildren($node);
+            $inner = $this->children($node);
             if (!$this->flavor->supports($type)) {
                 return $inner;
             }
@@ -254,217 +199,166 @@ final class ChatPreviewRenderer implements RendererInterface
             return '<' . $tag . '>' . $inner . '</' . $tag . '>';
         }
 
-        return match (true) {
-            $node instanceof Text, $node instanceof EscapedText => $this->escape($node->getContent()),
-            $node instanceof Paragraph => '<p>' . $this->renderChildren($node) . '</p>',
-            $node instanceof Heading => $this->renderHeading($node),
-            $node instanceof BlockQuote => $this->renderBlockQuote($node),
-            $node instanceof ListBlock => $this->renderList($node),
-            $node instanceof ListItem => '<li>' . $this->itemContent($node) . '</li>',
-            $node instanceof CodeBlock => '<pre><code>' . $this->escape($node->getContent()) . '</code></pre>',
-            $node instanceof InlineExtension => $this->renderInlineExtension($node),
-            $node instanceof Code => $this->renderCode($node),
-            $node instanceof Table => $this->renderTable($node),
-            $node instanceof Link => $this->renderLink($node),
-            $node instanceof Image => $this->renderImage($node),
-            $node instanceof SoftBreak, $node instanceof HardBreak => '<br>',
-            default => $this->renderChildren($node),
+        return match ($type) {
+            'text', 'escaped_text', 'smart_punctuation', 'literal_inline' => $this->escape((string)($node->f['value'] ?? '')),
+            'paragraph' => '<p>' . $this->children($node) . '</p>',
+            'heading' => $this->heading($node),
+            'block_quote' => $this->quote($node),
+            'list' => $this->list($node),
+            'list_item' => '<li>' . $this->itemContent($node) . '</li>',
+            'code_block' => '<pre><code>' . $this->escape(rtrim((string)($node->f['value'] ?? ''), "\n")) . '</code></pre>',
+            'inline_extension' => $this->inlineExtension($node),
+            'code' => $this->flavor->supports('code') ? '<code>' . $this->escape((string)($node->f['value'] ?? '')) . '</code>' : $this->escape((string)($node->f['value'] ?? '')),
+            'table' => $this->table($node),
+            'link' => $this->link($node),
+            'image' => $this->image($node),
+            'soft_break', 'hard_break' => '<br>',
+            'cell_wrap' => ' ',
+            'raw_inline', 'raw_text' => $this->escape((string)($node->f['value'] ?? '')),
+            default => $this->children($node),
         };
     }
 
-    /**
-     * A target without heading syntax still shows the text, bolded where the
-     * flavor degrades it that way.
-     */
-    private function renderHeading(Heading $node): string
+    private function heading(Node $node): string
     {
-        $inner = $this->renderChildren($node);
-        if (!$this->flavor->supports(NodeType::HEADING)) {
-            $emphasized = str_contains((string)($this->flavor->emission(NodeType::HEADING)['template'] ?? ''), '*');
+        $inner = $this->children($node);
+        if (!$this->flavor->supports('heading')) {
+            $template = (string)($this->flavor->emission('heading')['template'] ?? '');
 
-            return '<p>' . ($emphasized ? '<strong>' . $inner . '</strong>' : $inner) . '</p>';
+            return '<p>' . (str_contains($template, '*') || str_contains($template, '<b>') ? '<strong>' . $inner . '</strong>' : $inner) . '</p>';
         }
-
-        $level = min(max($node->getLevel(), 1), 6);
+        $level = min(max((int)($node->f['level'] ?? 1), 1), 6);
 
         return '<h' . $level . '>' . $inner . '</h' . $level . '>';
     }
 
-    /**
-     * A spoiler is hidden until tapped, so the preview shows it concealed
-     * rather than as ordinary text.
-     */
-    private function renderInlineExtension(InlineExtension $node): string
+    private function quote(Node $node): string
     {
-        $inner = $this->renderChildren($node);
-        $key = NodeType::INLINE_EXTENSION . ':' . $node->getExtensionType();
-
-        if ($node->getExtensionType() === 'spoiler' && $this->flavor->supports($key)) {
-            return '<span class="spoiler">' . $inner . '</span>';
+        if ($this->flavor->supports('block_quote')) {
+            return '<blockquote>' . $this->children($node) . '</blockquote>';
+        }
+        $out = '';
+        foreach ($node->children ?? [] as $child) {
+            $out .= '<div>&gt; ' . $this->children($child) . '</div>';
         }
 
-        return $inner;
+        return $out;
     }
 
-    private function renderCode(Code $node): string
+    private function list(Node $node): string
     {
-        $inner = $this->escape($node->getContent());
-
-        return $this->flavor->supports(NodeType::CODE) ? '<code>' . $inner . '</code>' : $inner;
-    }
-
-    /**
-     * Slack has no list syntax at all, so its `- ` is literally a hyphen on
-     * screen. Showing a real bullet list there would claim a feature the
-     * platform does not have.
-     */
-    private function renderList(ListBlock $node): string
-    {
-        $ordered = $node->getListType() === ListBlock::TYPE_ORDERED;
-
-        if (!$this->flavor->supports(NodeType::LIST_BLOCK)) {
+        $ordered = ($node->f['marker']['kind'] ?? 'bullet') !== 'bullet';
+        if (!$this->flavor->supports('list')) {
             $lines = '';
-            $number = 1;
-            foreach ($node->getChildren() as $item) {
+            $number = (int)($node->f['start'] ?? 1);
+            foreach ($node->children ?? [] as $item) {
                 $prefix = $ordered ? $number++ . '. ' : '- ';
                 $lines .= '<div>' . $this->escape($prefix) . $this->itemContent($item) . '</div>';
             }
 
             return $lines;
         }
-
         $tag = $ordered ? 'ol' : 'ul';
 
-        return '<' . $tag . '>' . $this->renderChildren($node) . '</' . $tag . '>';
+        return '<' . $tag . '>' . $this->children($node) . '</' . $tag . '>';
     }
 
-    /**
-     * List item text without its paragraph wrapper, so a literal `- one` stays
-     * one contiguous run rather than being split by a block element.
-     */
-    private function itemContent(Node $node): string
+    private function itemContent(Node $item): string
     {
         $out = '';
-        foreach ($node->getChildren() as $child) {
-            $out .= $child instanceof Paragraph ? $this->renderChildren($child) : $this->renderNode($child);
+        foreach ($item->children ?? [] as $child) {
+            $out .= $child->type === 'paragraph' ? $this->children($child) : $this->node($child);
         }
 
         return $out;
     }
 
-    /**
-     * Same reasoning as lists: a target without quote rendering shows the
-     * `> ` prefix as ordinary characters.
-     */
-    private function renderBlockQuote(BlockQuote $node): string
+    private function inlineExtension(Node $node): string
     {
-        if ($this->flavor->supports(NodeType::BLOCKQUOTE)) {
-            return '<blockquote>' . $this->renderChildren($node) . '</blockquote>';
-        }
+        $content = $this->children($node);
 
-        $out = '';
-        foreach ($node->getChildren() as $child) {
-            $out .= '<div>&gt; ' . $this->renderChildren($child) . '</div>';
-        }
-
-        return $out;
+        return ($node->f['name'] ?? '') === 'spoiler' && $this->flavor->supports(self::SPOILER_KEY)
+            ? '<span class="spoiler">' . $content . '</span>' : $content;
     }
 
-    /**
-     * Every target flattens tables, so the preview shows the monospace block a
-     * reader would actually see.
-     */
-    private function renderTable(Table $node): string
+    private function table(Node $node): string
     {
-        $layout = TableLayout::expand($node, fn (TableCell $cell): string => trim($this->plainText($cell)));
-
         $rows = [];
-        $widths = [];
-        foreach ($layout['rows'] as $row) {
-            $cells = [];
-            foreach ($row['cells'] as $index => $cell) {
-                $cells[$index] = is_string($cell) ? $cell : '';
-                $widths[$index] = max($widths[$index] ?? 0, strlen($cells[$index]));
-            }
-            $rows[] = $cells;
-        }
+        $scan = function (Node $part) use (&$scan, &$rows): void {
+            if ($part->type === 'table_row') {
+                $cells = [];
+                foreach ($part->children ?? [] as $cell) {
+                    if ($cell->type === 'table_cell') {
+                        $cells[] = trim($this->plain($cell));
+                    }
+                }
+                $rows[] = $cells;
 
+                return;
+            }
+            foreach ($part->children ?? [] as $child) {
+                $scan($child);
+            }
+        };
+        $scan($node);
+        $widths = [];
+        foreach ($rows as $row) {
+            foreach ($row as $i => $cell) {
+                $widths[$i] = max($widths[$i] ?? 0, strlen($cell));
+            }
+        }
         $lines = [];
         foreach ($rows as $row) {
-            $padded = [];
-            foreach ($row as $index => $cell) {
-                $padded[] = str_pad($cell, $widths[$index] ?? 0);
+            $cells = [];
+            foreach ($row as $i => $cell) {
+                $cells[] = str_pad($cell, $widths[$i] ?? 0);
             }
-            $lines[] = rtrim(implode('  ', $padded));
+            $lines[] = rtrim(implode('  ', $cells));
         }
 
         return '<pre><code>' . $this->escape(implode("\n", $lines)) . '</code></pre>';
     }
 
-    /**
-     * Cell text without markup - the flattened block is monospace, so marks
-     * inside it have nothing to render as.
-     */
-    private function plainText(Node $node): string
+    private function plain(Node $node): string
     {
-        if ($node instanceof Text || $node instanceof EscapedText || $node instanceof Code) {
-            return $node->getContent();
+        if (in_array($node->type, ['text', 'code', 'escaped_text'], true)) {
+            return (string)($node->f['value'] ?? '');
         }
-        if ($node instanceof CellWrap) {
+        if ($node->type === 'cell_wrap') {
             return ' ';
         }
-
         $out = '';
-        foreach ($node->getChildren() as $child) {
-            $out .= $this->plainText($child);
+        foreach ($node->children ?? [] as $child) {
+            $out .= $this->plain($child);
         }
 
         return $out;
     }
 
-    /**
-     * With no link syntax the URL is inlined, which is what the reader sees;
-     * chat clients autolink the bare URL, so the preview does too.
-     */
-    private function renderLink(Link $node): string
+    private function link(Node $node): string
     {
-        $inner = $this->renderChildren($node);
-        $url = (string)$node->getDestination();
-        $safeUrl = $this->sanitizeUrl($url);
+        $inner = $this->children($node);
+        $url = (string)($node->f['href'] ?? '');
+        $safe = $this->sanitizeUrl($url);
         $inlined = $this->flavor->linkStyle() === LinkStyle::None;
-
-        // A scheme we refuse to link becomes inert text rather than an anchor
-        // with an empty href, which would still look clickable.
-        if ($safeUrl === '') {
-            return $inlined ? $inner . ' (' . $this->escape($url) . ')' : $inner;
+        if ($safe === '') {
+            return $inner;
         }
+        $anchor = '<a href="' . $this->escape($safe) . '" rel="nofollow noopener" target="_blank">';
 
-        $anchor = '<a href="' . $this->escape($safeUrl) . '" rel="nofollow noopener" target="_blank">';
-
-        return $inlined
-            ? $inner . ' (' . $anchor . $this->escape($url) . '</a>)'
-            : $anchor . $inner . '</a>';
+        return $inlined ? $inner . ' (' . $anchor . $this->escape($url) . '</a>)' : $anchor . $inner . '</a>';
     }
 
-    private function renderImage(Image $node): string
+    private function image(Node $node): string
     {
-        $url = $node->getSource();
-
-        return $this->escape($node->getAlt()) . ' (' . $this->escape($url) . ')';
+        return $this->escape((string)($node->f['alt'] ?? '')) . ' (' . $this->escape((string)($node->f['src'] ?? '')) . ')';
     }
 
-    /**
-     * Only http(s) and mailto reach an href; anything else (javascript:, data:)
-     * is neutralized rather than linked.
-     */
     private function sanitizeUrl(string $url): string
     {
         $trimmed = trim($url);
-        if (preg_match('#^(https?://|mailto:|/|\#)#i', $trimmed) === 1) {
-            return $trimmed;
-        }
 
-        return '';
+        return preg_match('#^(https?://|mailto:|/|\#)#i', $trimmed) === 1 ? $trimmed : '';
     }
 
     private function escape(string $value): string
