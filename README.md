@@ -4,7 +4,17 @@ Render Carve 0.2 documents as WhatsApp, Slack, Telegram, Discord, or Signal mess
 
 ## Install from the 0.2 branches
 
-The 0.2 packages are not published yet. This branch pins the PHP engine's `next2` commit through Composer's VCS repository. Install this package from its `next2` branch and run `composer update` to fetch the pinned engine.
+The 0.2 packages are not published yet. This branch pins the PHP engine's `next2` commit through Composer's VCS repository. Composer reads repositories from the root project, so add both repositories there before requiring this package:
+
+```sh
+composer config minimum-stability dev
+composer config prefer-stable true
+composer config repositories.carve-php vcs https://github.com/markup-carve/carve-php.git
+composer config repositories.carve-php-chat vcs https://github.com/markup-carve/carve-php-chat.git
+composer require 'markup-carve/carve-php-chat:dev-next2'
+```
+
+The chat package's dependency constraint selects the pinned engine commit. No registry release is needed.
 
 ## Usage
 
