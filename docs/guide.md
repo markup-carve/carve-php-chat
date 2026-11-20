@@ -53,7 +53,7 @@ foreach ($result->losses as $loss) {
 
 `sourceLine` comes from the 0.2 tree position. `file` names the included file a node came from. For `includedBy` site names, pass the top-level file ID to `renderResult($document, "main.crv")`; each entry then gives `file`, `line`, and `column` in outermost-first order. Parse includes through `Carve::parse($source, ["includes" => ["resolver" => $resolver, "file" => "main.crv"]])`, where the resolver implements `IncludeResolver` and returns a `text` and stable `id`.
 
-The 0.2 engine's public table grid expansion is pending in [carve-php#5250](https://github.com/markup-carve/carve-php/issues/5250). Until it lands, chat table output uses the cells in source order and merged cells are not expanded.
+Chat and preview table writers expand merged cells with the engine's public `Carve::tableGrid()` API, so each occupied row and column slot appears in the output.
 
 ## Bundled flavors
 
