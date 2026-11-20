@@ -34,7 +34,7 @@ jobs:
       - run: composer update --prefer-dist --no-progress
       - name: Verify installed engine version
         run: |
-          composer show markup-carve/carve-php --format=json | php -r '$package = json_decode(stream_get_contents(STDIN), true); exit(($package["source"]["reference"] ?? "") === "db1624daf966ccfefb5adccf919c05ac89b7af4e" ? 0 : 1);'
+          composer show markup-carve/carve-php --format=json | php -r '$package = json_decode(stream_get_contents(STDIN), true); exit(($package["source"]["reference"] ?? "") === "1ce70376fbcb06d4ac40493efd131becaf957f29" ? 0 : 1);'
       - run: vendor/bin/phpunit
       - run: vendor/bin/phpstan analyse
         if: matrix.php-version == '8.2'
