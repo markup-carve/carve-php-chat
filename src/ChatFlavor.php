@@ -4,10 +4,7 @@ declare(strict_types=1);
 
 namespace MarkupCarve\Chat;
 
-use MarkupCarve\Carve\NodeType;
-use MarkupCarve\Carve\Profile;
 use MarkupCarve\Chat\Exception\InvalidFlavorException;
-use ReflectionClass;
 
 final readonly class ChatFlavor
 {
@@ -20,24 +17,6 @@ final readonly class ChatFlavor
      * @var string
      */
     public const SUPPORT_NONE = 'none';
-
-    /**
-     * Node types that exist as classes in the core but have no `NodeType`
-     * constant, so reflecting over that class alone does not find them.
-     *
-     * This gap was not academic: `citation_group` had no entry anywhere, so
-     * every citation was dropped from the message without any gate noticing.
-     * {@see \MarkupCarve\Chat\Test\TestCase\FlavorCompletenessTest} asserts
-     * this list still matches the core's node classes.
-     *
-     * @var array<string>
-     */
-    public const EXTRA_NODE_TYPES = [
-        'document',
-        'raw_text',
-        'smart_punctuation',
-        'substitution_half',
-    ];
 
     /**
      * @param string $id
@@ -89,7 +68,7 @@ final readonly class ChatFlavor
             throw new InvalidFlavorException(sprintf('Unknown link style in flavor "%s".', $id));
         }
         if ($style !== LinkStyle::None) {
-            $nodes[NodeType::LINK]['support'] = self::SUPPORT_NATIVE;
+            $nodes['link']['support'] = self::SUPPORT_NATIVE;
         }
 
         foreach ($nodes as $nodeType => $config) {
@@ -233,23 +212,12 @@ final readonly class ChatFlavor
         return is_string($style) && $style !== '' ? $style : null;
     }
 
-    public function toProfile(): Profile
+    /**
+     * @return array<string>
+     */
+    public function supportedTypes(): array
     {
-        $inline = [];
-        foreach (NodeType::allInlineTypes() as $type) {
-            if ($this->supports($type)) {
-                $inline[] = $type;
-            }
-        }
-
-        $block = [];
-        foreach (NodeType::allBlockTypes() as $type) {
-            if ($this->supports($type)) {
-                $block[] = $type;
-            }
-        }
-
-        return (new Profile())->allowInline($inline)->allowBlock($block);
+        return array_keys(array_filter($this->nodes, static fn (array $node): bool => ($node['support'] ?? '') === self::SUPPORT_NATIVE));
     }
 
     /**
@@ -285,16 +253,83 @@ final readonly class ChatFlavor
     /**
      * @return array<int, string>
      */
-    private static function knownNodeTypes(): array
+    public static function knownNodeTypes(): array
     {
-        $values = self::EXTRA_NODE_TYPES;
-        foreach ((new ReflectionClass(NodeType::class))->getConstants() as $value) {
-            if (is_string($value)) {
-                $values[] = $value;
-            }
-        }
-
-        return $values;
+        return [
+            'abbreviation',
+            'abbreviation_def',
+            'admonition',
+            'autolink',
+            'block_extension',
+            'block_quote',
+            'caption',
+            'caption_number',
+            'cell_paragraph',
+            'citation',
+            'citation_definition',
+            'citation_group',
+            'code',
+            'code_block',
+            'comment',
+            'critic_comment',
+            'definition_description',
+            'definition_list',
+            'definition_term',
+            'delete',
+            'directive',
+            'div',
+            'document',
+            'emphasis',
+            'figure_group',
+            'footnote',
+            'footnote_ref',
+            'frontmatter',
+            'hard_break',
+            'heading',
+            'highlight',
+            'image',
+            'include',
+            'inline_extension',
+            'inline_footnote',
+            'insert',
+            'line',
+            'line_block',
+            'link',
+            'link_reference_definition',
+            'list',
+            'list_item',
+            'literal_inline',
+            'math',
+            'mention',
+            'non_breaking_space',
+            'paragraph',
+            'raw_block',
+            'raw_inline',
+            'ruby',
+            'section',
+            'small_caps',
+            'smart_punctuation',
+            'soft_break',
+            'span',
+            'strike',
+            'strong',
+            'subscript',
+            'superscript',
+            'symbol',
+            'table',
+            'table_body',
+            'table_cell',
+            'table_column',
+            'table_foot',
+            'table_head',
+            'table_row',
+            'tag',
+            'text',
+            'thematic_break',
+            'underline',
+            'xref',
+            'ruby_pair',
+        ];
     }
 
     /**

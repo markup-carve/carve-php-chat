@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace MarkupCarve\Chat\Test\TestCase;
 
-use MarkupCarve\Carve\CarveConverter;
+use MarkupCarve\Carve\Carve;
 use MarkupCarve\Chat\ChatPreviewRenderer;
 use MarkupCarve\Chat\FlavorRegistry;
 use PHPUnit\Framework\TestCase;
@@ -17,7 +17,8 @@ final class ChatPreviewRendererTest extends TestCase
      */
     public function testMarksAreStyledOnlyWhereTheFlavorSupportsThem(): void
     {
-        $document = CarveConverter::create()->parse('Shipped _under_ and *bold*.');
+        // U-065: underline needs braces in 0.2.
+        $document = Carve::parse('Shipped {_under_} and *bold*.');
         $registry = new FlavorRegistry();
 
         // Discord has underline; WhatsApp has no underline at all.
@@ -33,7 +34,8 @@ final class ChatPreviewRendererTest extends TestCase
 
     public function testContinuationRowJoinsTheCellWithASpace(): void
     {
-        $document = CarveConverter::create()->parse("| A | B |\n|---|---|\n| 1 | 2 |\n+ x | y |\n");
+        // U-055: native header cells replace the 0.1 separator row.
+        $document = Carve::parse("|= A |= B |\n| 1 | 2 |\n+ x | y |\n");
 
         self::assertSame(
             "<pre><code>A    B\n1 x  2 y</code></pre>",
@@ -47,7 +49,7 @@ final class ChatPreviewRendererTest extends TestCase
      */
     public function testRangeBasedFlavorPreviewIsStyled(): void
     {
-        $document = CarveConverter::create()->parse('Shipped *bold*.');
+        $document = Carve::parse('Shipped *bold*.');
 
         $rendered = (new ChatPreviewRenderer((new FlavorRegistry())->get('signal')))->render($document);
 
@@ -61,7 +63,7 @@ final class ChatPreviewRendererTest extends TestCase
      */
     public function testRangeBasedPreviewInventsNoBlockStructure(): void
     {
-        $document = CarveConverter::create()->parse("> quoted\n\n- one\n- two\n");
+        $document = Carve::parse("> quoted\n\n- one\n- two\n");
 
         $rendered = (new ChatPreviewRenderer((new FlavorRegistry())->get('signal')))->render($document);
 
@@ -77,7 +79,7 @@ final class ChatPreviewRendererTest extends TestCase
      */
     public function testMarkupFlavorWithoutListSyntaxShowsLiteralPrefixes(): void
     {
-        $document = CarveConverter::create()->parse("- one\n- two\n");
+        $document = Carve::parse("- one\n- two\n");
         $registry = new FlavorRegistry();
 
         $slack = (new ChatPreviewRenderer($registry->get('slack')))->render($document);
@@ -95,7 +97,7 @@ final class ChatPreviewRendererTest extends TestCase
     public function testPayloadRangesRenderAsTheirElements(): void
     {
         $source = "[docs](https://e.com/a)\n\n> quoted\n\n``` php\necho 1;\n```\n";
-        $document = CarveConverter::create()->parse($source);
+        $document = Carve::parse($source);
 
         $rendered = (new ChatPreviewRenderer((new FlavorRegistry())->get('telegram-entities')))->render($document);
 
@@ -111,7 +113,7 @@ final class ChatPreviewRendererTest extends TestCase
      */
     public function testNestedRangesNestWellFormed(): void
     {
-        $document = CarveConverter::create()->parse('*/nested/ tail*');
+        $document = Carve::parse('*/nested/ tail*');
 
         $rendered = (new ChatPreviewRenderer((new FlavorRegistry())->get('signal')))->render($document);
 
@@ -124,7 +126,7 @@ final class ChatPreviewRendererTest extends TestCase
      */
     public function testUnsafeUrlInARangePayloadIsNotLinked(): void
     {
-        $document = CarveConverter::create()->parse('[click](javascript:alert(1))');
+        $document = Carve::parse('[click](javascript:alert(1))');
 
         $rendered = (new ChatPreviewRenderer((new FlavorRegistry())->get('telegram-entities')))->render($document);
 
@@ -138,7 +140,7 @@ final class ChatPreviewRendererTest extends TestCase
      */
     public function testLinkPreviewFollowsTheFlavorLinkStyle(): void
     {
-        $document = CarveConverter::create()->parse('See [docs](https://example.com).');
+        $document = Carve::parse('See [docs](https://example.com).');
         $registry = new FlavorRegistry();
 
         self::assertStringContainsString(
@@ -157,7 +159,7 @@ final class ChatPreviewRendererTest extends TestCase
      */
     public function testPreviewEscapesDocumentContent(): void
     {
-        $document = CarveConverter::create()->parse('A <script>alert(1)</script> B');
+        $document = Carve::parse('A <script>alert(1)</script> B');
 
         $rendered = (new ChatPreviewRenderer((new FlavorRegistry())->get('signal')))->render($document);
 
@@ -171,7 +173,7 @@ final class ChatPreviewRendererTest extends TestCase
      */
     public function testUnsafeUrlIsNotLinked(): void
     {
-        $document = CarveConverter::create()->parse('[click](javascript:alert(1))');
+        $document = Carve::parse('[click](javascript:alert(1))');
 
         $rendered = (new ChatPreviewRenderer((new FlavorRegistry())->get('discord-bot')))->render($document);
 
@@ -184,12 +186,12 @@ final class ChatPreviewRendererTest extends TestCase
      */
     public function testPreviewDoesNotMutateTheDocument(): void
     {
-        $document = CarveConverter::create()->parse("| A | B |\n|---|---|\n| 1 | 2 |\n");
-        $before = count($document->getChildren());
+        $document = Carve::parse("| A | B |\n|---|---|\n| 1 | 2 |\n");
+        $before = count($document->children ?? []);
 
         (new ChatPreviewRenderer((new FlavorRegistry())->get('slack')))->render($document);
 
-        self::assertSame($before, count($document->getChildren()));
+        self::assertSame($before, count($document->children ?? []));
         self::assertNotSame('', (new ChatPreviewRenderer((new FlavorRegistry())->get('slack')))->render($document));
     }
 }

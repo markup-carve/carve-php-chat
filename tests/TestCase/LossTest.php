@@ -4,20 +4,9 @@ declare(strict_types=1);
 
 namespace MarkupCarve\Chat\Test\TestCase;
 
-use MarkupCarve\Carve\CarveConverter;
-use MarkupCarve\Carve\Node\Block\Heading;
-use MarkupCarve\Carve\Node\Block\Paragraph;
-use MarkupCarve\Carve\Node\Block\Table;
-use MarkupCarve\Carve\Node\Block\TableCell;
-use MarkupCarve\Carve\Node\Block\TableRow;
-use MarkupCarve\Carve\Node\Document;
-use MarkupCarve\Carve\Node\Inline\Link;
-use MarkupCarve\Carve\Node\Inline\Text;
-use MarkupCarve\Carve\NodeType;
-use MarkupCarve\Carve\Transform\IncludeContext;
-use MarkupCarve\Carve\Transform\IncludeExpander;
-use MarkupCarve\Carve\Transform\IncludeResolverInterface;
-use MarkupCarve\Carve\Transform\ResolvedInclude;
+use MarkupCarve\Carve\Carve;
+use MarkupCarve\Carve\Include\IncludeResolver;
+use MarkupCarve\Carve\Node;
 use MarkupCarve\Chat\ChatRenderer;
 use MarkupCarve\Chat\Fallback;
 use MarkupCarve\Chat\FlavorRegistry;
@@ -27,13 +16,12 @@ final class LossTest extends TestCase
 {
     public function testTableDegradesToCodeBlockAndRecordsLoss(): void
     {
-        $document = new Document();
-        $document->appendChild($this->table());
+        $document = Carve::parse("|= A |= B |\n| 1 | 2 |\n");
 
         $result = (new ChatRenderer((new FlavorRegistry())->get('discord')))->renderResult($document);
 
         self::assertSame("```\nA  B\n1  2\n```\n", $result->text);
-        self::assertSame(NodeType::TABLE, $result->losses[0]->nodeType);
+        self::assertSame('table', $result->losses[0]->nodeType);
         self::assertSame(Fallback::CodeBlock, $result->losses[0]->fallback);
     }
 
@@ -42,26 +30,23 @@ final class LossTest extends TestCase
         $result = (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->renderResult($this->linkDocument());
 
         self::assertSame('site (https://example.com)' . "\n", $result->text);
-        self::assertSame(NodeType::LINK, $result->losses[0]->nodeType);
+        self::assertSame('link', $result->losses[0]->nodeType);
     }
 
     public function testFootnoteReferenceNumberMatchesItsAppendixEntry(): void
     {
         $source = "First[^a] and second[^b].\n\n[^a]: Note A.\n\n[^b]: Note B.\n";
-        $document = CarveConverter::create()->parse($source);
+        $document = Carve::parse($source);
 
         $result = (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->renderResult($document);
 
         self::assertSame("First[1] and second[2].\n\n[1] Note A.\n[2] Note B.\n", $result->text);
-        self::assertSame(Fallback::Appendix, $result->lossesFor(NodeType::FOOTNOTE)[0]->fallback);
+        self::assertSame(Fallback::Appendix, $result->lossesFor('footnote')[0]->fallback);
     }
 
     public function testDiscordHeadingRecordsNoLoss(): void
     {
-        $document = new Document();
-        $heading = new Heading(4);
-        $heading->appendChild(new Text('Deep'));
-        $document->appendChild($heading);
+        $document = Carve::parse("==== Deep\n");
 
         $result = (new ChatRenderer((new FlavorRegistry())->get('discord')))->renderResult($document);
 
@@ -83,10 +68,7 @@ final class LossTest extends TestCase
 
     public function testOverLimitTextRecordsLengthLoss(): void
     {
-        $paragraph = new Paragraph();
-        $paragraph->appendChild(new Text(str_repeat('x', 2001)));
-        $document = new Document();
-        $document->appendChild($paragraph);
+        $document = Carve::parse(str_repeat('x', 2001));
 
         $result = (new ChatRenderer((new FlavorRegistry())->get('discord')))->renderResult($document);
 
@@ -95,13 +77,11 @@ final class LossTest extends TestCase
 
     public function testLossTakesItsLineFromPositionTracking(): void
     {
-        $converter = CarveConverter::create();
-        $converter->getParser()->enablePositionTracking();
-        $document = $converter->parse("a\n\n***\n");
+        $document = Carve::parse("a\n\n***\n");
 
         $loss = (new ChatRenderer((new FlavorRegistry())->get('slack')))->renderResult($document)->losses[0];
 
-        self::assertSame(NodeType::THEMATIC_BREAK, $loss->nodeType);
+        self::assertSame('thematic_break', $loss->nodeType);
         self::assertSame(3, $loss->sourceLine);
         self::assertNull($loss->file);
         self::assertNull($loss->includedBy);
@@ -109,57 +89,27 @@ final class LossTest extends TestCase
 
     public function testLossFromIncludedContentNamesTheIncludedFile(): void
     {
-        $resolver = new class implements IncludeResolverInterface {
-            public function resolve(string $path, IncludeContext $context): ?ResolvedInclude
+        $resolver = new class implements IncludeResolver {
+            public function resolve(array $request): array
             {
-                return $path === 'part.crv' ? new ResolvedInclude("x\n\n***\n", $path) : null;
+                return $request['path'] === 'part.crv'
+                    ? ['text' => "x\n\n***\n", 'id' => 'part.crv']
+                    : ['error' => 'not_found'];
             }
         };
-        $converter = CarveConverter::create();
-        $converter->getParser()->enablePositionTracking();
         $source = "a\n\n{{ part.crv }}\n";
-        $document = $converter->transform($converter->parse($source), new IncludeExpander($resolver, 'main.crv', source: $source));
+        $document = Carve::parse($source, ['includes' => ['resolver' => $resolver, 'file' => 'main.crv']]);
 
-        $loss = (new ChatRenderer((new FlavorRegistry())->get('slack')))->renderResult($document)->losses[0];
+        $loss = (new ChatRenderer((new FlavorRegistry())->get('slack')))->renderResult($document, 'main.crv')->losses[0];
 
-        self::assertSame(NodeType::THEMATIC_BREAK, $loss->nodeType);
+        self::assertSame('thematic_break', $loss->nodeType);
         self::assertSame(3, $loss->sourceLine);
         self::assertSame('part.crv', $loss->file);
         self::assertSame([['file' => 'main.crv', 'line' => 3, 'column' => 1]], $loss->includedBy);
     }
 
-    private function linkDocument(): Document
+    private function linkDocument(): Node
     {
-        $paragraph = new Paragraph();
-        $link = new Link('https://example.com');
-        $link->appendChild(new Text('site'));
-        $paragraph->appendChild($link);
-        $document = new Document();
-        $document->appendChild($paragraph);
-
-        return $document;
-    }
-
-    private function table(): Table
-    {
-        $table = new Table();
-        $header = new TableRow(true);
-        $header->appendChild($this->cell('A', true));
-        $header->appendChild($this->cell('B', true));
-        $table->appendChild($header);
-        $row = new TableRow();
-        $row->appendChild($this->cell('1'));
-        $row->appendChild($this->cell('2'));
-        $table->appendChild($row);
-
-        return $table;
-    }
-
-    private function cell(string $text, bool $header = false): TableCell
-    {
-        $cell = new TableCell($header);
-        $cell->appendChild(new Text($text));
-
-        return $cell;
+        return Carve::parse('[site](https://example.com)');
     }
 }

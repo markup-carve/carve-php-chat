@@ -4,11 +4,7 @@ declare(strict_types=1);
 
 namespace MarkupCarve\Chat\Test\TestCase;
 
-use MarkupCarve\Carve\CarveConverter;
-use MarkupCarve\Carve\Node\Block\Paragraph;
-use MarkupCarve\Carve\Node\Document;
-use MarkupCarve\Carve\Node\Inline\Code;
-use MarkupCarve\Carve\Node\Inline\Text;
+use MarkupCarve\Carve\Carve;
 use MarkupCarve\Chat\ChatRenderer;
 use MarkupCarve\Chat\EscapeMechanism;
 use MarkupCarve\Chat\Escaper;
@@ -38,12 +34,7 @@ final class EscaperTest extends TestCase
 
     public function testDoesNotEscapeInsideCodeSpans(): void
     {
-        $document = new Document();
-        $paragraph = new Paragraph();
-        $paragraph->appendChild(new Text('Use '));
-        $paragraph->appendChild(new Code('*raw_'));
-        $paragraph->appendChild(new Text(' now'));
-        $document->appendChild($paragraph);
+        $document = Carve::parse('Use `*raw_` now');
 
         $renderer = new ChatRenderer((new FlavorRegistry())->get('whatsapp'));
 
@@ -56,10 +47,7 @@ final class EscaperTest extends TestCase
      */
     public function testEntityFlavorEscapesCodeContents(): void
     {
-        $document = new Document();
-        $paragraph = new Paragraph();
-        $paragraph->appendChild(new Code('1 < 2 && x'));
-        $document->appendChild($paragraph);
+        $document = Carve::parse('`1 < 2 && x`');
 
         $renderer = new ChatRenderer((new FlavorRegistry())->get('telegram-html'));
 
@@ -74,8 +62,9 @@ final class EscaperTest extends TestCase
     public function testBacktickFlavorWidensFenceAroundCodeContainingBackticks(): void
     {
         $registry = new FlavorRegistry();
-        $inline = CarveConverter::create()->parse('Use ``a`b`` now.');
-        $block = CarveConverter::create()->parse("~~~~\nhas ``` inside\n~~~~\n");
+        $inline = Carve::parse('Use ``a`b`` now.');
+        // C2-B-108: code fences use backticks; a tilde run is text in 0.2.
+        $block = Carve::parse("````\nhas ``` inside\n````\n");
 
         self::assertSame(
             'Use ``a`b`` now.' . "\n",
@@ -97,7 +86,7 @@ final class EscaperTest extends TestCase
      */
     public function testFallbackUrlIsNotMarkupEscaped(): void
     {
-        $document = CarveConverter::create()->parse('[x](https://example.com/a_b~c)');
+        $document = Carve::parse('[x](https://example.com/a_b~c)');
 
         $rendered = (new ChatRenderer((new FlavorRegistry())->get('whatsapp')))->render($document);
 
@@ -111,7 +100,7 @@ final class EscaperTest extends TestCase
     public function testTableCellsAreNotMarkupEscapedInsideCodeFence(): void
     {
         $registry = new FlavorRegistry();
-        $document = CarveConverter::create()->parse("| A_B |\n|---|\n| c*d |\n");
+        $document = Carve::parse("|= A_B |\n| c*d |\n");
 
         self::assertSame(
             "```\nA_B\nc*d\n```\n",
@@ -120,7 +109,7 @@ final class EscaperTest extends TestCase
         self::assertSame(
             "<pre>\nA&amp;B\n</pre>\n",
             (new ChatRenderer($registry->get('telegram-html')))->render(
-                CarveConverter::create()->parse("| A&B |\n|---|\n"),
+                Carve::parse("|= A&B |\n"),
             ),
         );
     }
