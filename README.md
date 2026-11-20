@@ -23,7 +23,7 @@ use MarkupCarve\Carve\Carve;
 use MarkupCarve\Chat\ChatRenderer;
 use MarkupCarve\Chat\FlavorRegistry;
 
-$tree = Carve::parse("# Hello\n");
+$tree = Carve::parse("= Hello\n");
 $writer = new ChatRenderer((new FlavorRegistry())->get('slack'));
 echo $writer->render($tree);
 
@@ -32,6 +32,8 @@ echo Carve::writeTo($writer->target(), $tree, [], $writers);
 ```
 
 For a loss report, call `$writer->renderResult($tree)`. Its result includes the message, losses, and style ranges. The [guide](docs/guide.md) covers flavor choices, includes, and secure previews.
+
+The 0.1 `ChatFlavor::toProfile()` method was removed in 0.2. Flavor definitions now configure the chat writer directly; choose a flavor through `FlavorRegistry` as above.
 
 ## License
 

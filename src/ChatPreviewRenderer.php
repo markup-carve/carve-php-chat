@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MarkupCarve\Chat;
 
+use MarkupCarve\Carve\Carve;
 use MarkupCarve\Carve\Node;
 
 final class ChatPreviewRenderer
@@ -284,23 +285,13 @@ final class ChatPreviewRenderer
     private function table(Node $node): string
     {
         $rows = [];
-        $scan = function (Node $part) use (&$scan, &$rows): void {
-            if ($part->type === 'table_row') {
-                $cells = [];
-                foreach ($part->children ?? [] as $cell) {
-                    if ($cell->type === 'table_cell') {
-                        $cells[] = trim($this->plain($cell));
-                    }
-                }
-                $rows[] = $cells;
-
-                return;
+        foreach (Carve::tableGrid($node) as $row) {
+            $cells = [];
+            foreach ($row['cells'] as $cell) {
+                $cells[] = $cell === null ? '' : trim($this->plain($cell));
             }
-            foreach ($part->children ?? [] as $child) {
-                $scan($child);
-            }
-        };
-        $scan($node);
+            $rows[] = $cells;
+        }
         $widths = [];
         foreach ($rows as $row) {
             foreach ($row as $i => $cell) {

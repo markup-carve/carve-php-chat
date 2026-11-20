@@ -34,8 +34,12 @@ final class PortedApiTest extends TestCase
         self::assertStringNotContainsString('<a ', (new ChatPreviewRenderer($flavor))->render($tree));
     }
 
-    public function testTableGridExpansionPendingInEngine(): void
+    public function testTableGridExpandsSpansInBothWriters(): void
     {
-        self::markTestSkipped('Merged table cell grid expansion awaits carve-php#5250.');
+        $tree = Carve::parse("|= Name |= Qty |= Note |\n| Apple | 12 | fresh |\n| ^ | 3 | < |\n");
+        $flavor = (new FlavorRegistry())->get('slack');
+
+        self::assertStringContainsString("Apple  3    3\n", (new ChatRenderer($flavor))->render($tree));
+        self::assertStringContainsString('Apple  3    3', (new ChatPreviewRenderer($flavor))->render($tree));
     }
 }
