@@ -3,11 +3,11 @@ name: CI
 env:
   COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ github.token }}"}}'
 
-# Install the pinned 0.2 engine from its next2 git commit.
+# Install the pinned 0.2 engine from its main git commit.
 
 on:
   push:
-    branches: [main, next2]
+    branches: [main]
   pull_request:
 
 # Jobs carry an explicit timeout-minutes: without one GitHub applies a
