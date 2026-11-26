@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace MarkupCarve\Chat\Test\TestCase;
 
-use MarkupCarve\Carve\CarveConverter;
+use MarkupCarve\Carve\Carve;
 use MarkupCarve\Chat\ChatPreviewRenderer;
 use MarkupCarve\Chat\ChatRenderer;
 use MarkupCarve\Chat\FlavorRegistry;
@@ -23,7 +23,7 @@ final class EngineWaveInputTest extends TestCase
     public function testBracedCellAlignmentLeavesNoBracesInAnyFlavor(): void
     {
         $registry = new FlavorRegistry();
-        $document = CarveConverter::create()->parse(self::BRACED_ALIGNMENT);
+        $document = Carve::parse(self::BRACED_ALIGNMENT);
 
         foreach ($registry->ids() as $id) {
             $text = (new ChatRenderer($registry->get($id)))->renderResult($document)->text;
@@ -35,7 +35,7 @@ final class EngineWaveInputTest extends TestCase
 
     public function testBracedCellAlignmentRendersPlainCells(): void
     {
-        $document = CarveConverter::create()->parse(self::BRACED_ALIGNMENT);
+        $document = Carve::parse(self::BRACED_ALIGNMENT);
         $flavor = (new FlavorRegistry())->get('discord');
 
         self::assertSame("```\nItem   Qty\nApple  3\n```\n", (new ChatRenderer($flavor))->render($document));
@@ -47,7 +47,7 @@ final class EngineWaveInputTest extends TestCase
 
     public function testErasedCommentLineJoinsTheParagraph(): void
     {
-        $document = CarveConverter::create()->parse("alpha\n%% gone\nbeta\n");
+        $document = Carve::parse("alpha\n%% gone\nbeta\n");
         $flavor = (new FlavorRegistry())->get('slack');
 
         self::assertSame("alpha\nbeta\n", (new ChatRenderer($flavor))->render($document));

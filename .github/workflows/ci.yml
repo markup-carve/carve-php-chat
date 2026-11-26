@@ -3,12 +3,11 @@ name: CI
 env:
   COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ github.token }}"}}'
 
-# Installs what composer.json declares, so a green run says the package works
-# for someone who installs it from Packagist.
+# Install the pinned 0.2 engine from its next2 git commit.
 
 on:
   push:
-    branches: [main, next]
+    branches: [main, next2]
   pull_request:
 
 # Jobs carry an explicit timeout-minutes: without one GitHub applies a
@@ -35,8 +34,7 @@ jobs:
       - run: composer update --prefer-dist --no-progress
       - name: Verify installed engine version
         run: |
-          actual="$(composer show markup-carve/carve-php --format=json | php -r '$package = json_decode(stream_get_contents(STDIN), true); echo ltrim($package["versions"][0] ?? "", "v");')"
-          php -r 'exit(version_compare($argv[1], "0.1.17", ">=") ? 0 : 1);' "$actual"
+          composer show markup-carve/carve-php --format=json | php -r '$package = json_decode(stream_get_contents(STDIN), true); exit(($package["source"]["reference"] ?? "") === "6ceebc52181efc1f5dfe6f5e7964b75c43f13a90" ? 0 : 1);'
       - run: vendor/bin/phpunit
       - run: vendor/bin/phpstan analyse
         if: matrix.php-version == '8.2'

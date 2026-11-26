@@ -244,6 +244,15 @@
     "block_extension": { "support": "none", "fallback": "unwrap" },
     "ruby": { "support": "none", "fallback": "unwrap" },
     "small_caps": { "support": "none", "fallback": "unwrap" },
-    "non_breaking_space": { "support": "native" }
+    "non_breaking_space": { "support": "native" },
+    "cell_paragraph": {"support": "native"},
+    "line": {"support": "native"},
+    "ruby_pair": {"support": "none", "fallback": "unwrap"},
+    "table_body": {"support": "native"},
+    "table_column": {"support": "none", "fallback": "drop"},
+    "table_foot": {"support": "native"},
+    "table_head": {"support": "native"},
+    "tag": {"support": "native"},
+    "xref": {"support": "none", "fallback": "unwrap"}
   }
 }
