@@ -4,11 +4,17 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
-### Changed
+## 0.2.0 - 2026-11-27
 
-- Port chat rendering and previews to Carve 0.2's public `Node` tree and output writer registry. The PHP engine is pinned to its `next2` commit.
+### Breaking
+
+- Port chat rendering and previews to Carve 0.2's public `Node` tree and output writer registry. Parse with `Carve::parse()` and register `ChatRenderer` through `Carve::writers()` for `Carve::writeTo()`.
 - Update bundled flavors for the 0.2 AST vocabulary, migrate source fixtures, and retain safe URL handling and loss reports.
-- Parse with `Carve::parse()` and register `ChatRenderer` through `Carve::writers()` for `Carve::writeTo()`.
+- Remove `ChatFlavor::toProfile()`. Flavor definitions configure the chat writer directly; pick one through `FlavorRegistry`.
+
+### Improvements
+
+- Chat and preview tables expand merged cells through the engine's `Carve::tableGrid()`, so every occupied row and column slot appears in the output (#36).
 
 ## 0.1.5 - 2026-11-12
 ### Added
